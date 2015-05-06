@@ -101,49 +101,137 @@ component cacheuse="transactional"
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public struct   function getInheritedProperties( struct result = {} )
+  public struct   function getInheritedProperties()
   {
-    var obj = getMetaData( this );
+    var meta = getMetaData( this );
+    var result = {};
+    var extends = true;
 
-    if( structKeyExists( obj, "extends" ) and
-        not obj.extends.fullname eq 'WEB-INF.cftags.component' and
-        not obj.extends.fullname eq 'railo.Component' and
-        not obj.extends.fullname eq 'lucee.Component' )
+    while( extends )
     {
-      result = createObject( obj.extends.fullname ).getInheritedProperties( result );
-    }
-
-    if( structKeyExists( obj, "properties" ))
-    {
-      for( local.propNr = 1; local.propNr lte arrayLen( obj.properties ); local.propNr++ )
+      if(
+          not (
+            structKeyExists( meta, "extends" ) and
+            not meta.extends.fullname eq 'WEB-INF.cftags.component' and
+            not meta.extends.fullname eq 'railo.Component' and
+            not meta.extends.fullname eq 'lucee.Component'
+          )
+        )
       {
-        local.property = obj.properties[local.propNr];
+        extends = false;
+      }
 
-        for( local.field in local.property )
+      if( structKeyExists( meta, "properties" ))
+      {
+        for( var property in meta.properties )
         {
-          result[local.property.name][local.field] = local.property[local.field];
-
-          if( structKeyExists( local.property, "cfc" ))
+          for( var field in property )
           {
-            result[local.property.name]["entityName"] = createObject( local.property.cfc ).getEntityName();
+            result[property.name][field] = property[field];
+
+            if( structKeyExists( property, "cfc" ))
+            {
+              result[property.name]["entityName"] = getEntityName( property.cfc );
+            }
           }
         }
       }
+
+      meta = meta.extends;
     }
 
     return result;
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public string   function getEntityName()
+  public string   function getEntityName( string className = getClassName())
   {
-    return ORMGetSessionFactory().getClassMetadata( getClassName()).getEntityName();
+    return ORMGetSessionFactory().getClassMetadata( className ).getEntityName();
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   public string   function getClassName()
   {
     return listLast( getMetaData( this ).fullname, "." );
+  }
+
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  public any      function getReverseField( required string cfc, required string fkColumn, required string type, required string singular_or_plural="singular" )
+  {
+    var properties = structFindKey( getInheritedProperties(), "cfc", "all" );
+    var field = 0;
+    var fieldFound = false;
+
+    if( not arrayLen( properties ))
+    {
+      // ERROR: not linked to any CFCs
+      writeDump( arguments );
+      abort;
+    }
+
+    for( property in properties )
+    {
+      field = property.owner;
+
+      if(
+          not (
+            (
+              structKeyExists( field, "fkcolumn" ) and
+              field.fkColumn eq fkColumn
+            ) or
+            field.cfc eq cfc
+          )
+        )
+      {
+        continue;
+      }
+
+      if( field.cfc eq cfc )
+      {
+        fieldFound = true;
+        break;
+      }
+
+      var testObj = createObject( cfc );
+
+      if( isInstanceOf( testObj, field.cfc ))
+      {
+        fieldFound = true;
+        break;
+      }
+
+      if( testObj.getClassName() eq field.cfc )
+      {
+        fieldFound = true;
+        break;
+      }
+    }
+
+    var propertyWithFK = structFindValue({ 'search' = properties }, fkColumn, 'all' );
+
+    if( arrayLen( propertyWithFK ) eq 1 )
+    {
+      field = propertyWithFK[1].owner;
+      fieldFound = true;
+    }
+
+    if( not fieldFound )
+    {
+      // ERROR: no valid properties found in #listLast( local.meta.name, '.' )#
+      writeDump( arguments );
+      writeDump( getMetaData( this ));
+      writeDump( properties );
+      abort;
+    }
+
+    result = field.name;
+
+    if( singular_or_plural eq "singular" and structKeyExists( field, 'singularName' ))
+    {
+      result = field['singularName'];
+    }
+
+    return result;
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -187,59 +275,25 @@ component cacheuse="transactional"
     {
       if( not len( trim( getCreateDate())))
       {
-        setCreateDate( now());
+        formData.createDate = now();
       }
 
       if( not len( trim( getCreateIP())))
       {
-        setCreateIP( cgi.remote_host );
+        formData.createIP = cgi.remote_host;
       }
 
-      setUpdateDate( now());
-      setUpdateIP( cgi.remote_host );
+      formData.updateDate = now();
+      formData.updateIP = cgi.remote_host;
 
       if( not request.context.config.disableSecurity )
       {
         if( not hasCreateContact())
         {
-          setCreateContact( session.auth.user );
+          formData.createContact = request.context.auth.userID;
         }
 
-        setUpdateContact( session.auth.user );
-      }
-    }
-
-    // typeahead
-    for( key in properties )
-    {
-      property = properties[key];
-
-      if( structKeyExists( property, "cfc" ))
-      {
-        propertyEntityName = createObject( property.cfc ).getEntityName();
-      }
-
-      if( structKeyExists( formData, "#property.name#_tagsinput" ))
-      {
-        local.tagsField = formData["#property.name#_tagsinput"];
-        if( len( trim( local.tagsField )))
-        {
-          formData["set_#property.name#"] = "";
-
-          for( local.tag in local.tagsField )
-          {
-            local.tagToLink = entityLoad( propertyEntityName, { name = lCase( local.tag )});
-
-            if( arrayLen( local.tagToLink ) eq 1 )
-            {
-              formData["set_#property.name#"] = listAppend( formData["set_#property.name#"], '{"id":"#local.tagToLink[1].getID()#"}' );
-            }
-            else
-            {
-              formData["set_#property.name#"] = listAppend( formData["set_#property.name#"], '{"name":"#local.tag#"}' );
-            }
-          }
-        }
+        formData.updateContact = request.context.auth.userID;
       }
     }
 
@@ -283,7 +337,7 @@ component cacheuse="transactional"
 
       if( structKeyExists( property, "cfc" ))
       {
-        propertyEntityName = createObject( property.cfc ).getEntityName();
+        propertyEntityName = getEntityName( property.cfc );
       }
 
       savecontent variable="local.debugoutput"
@@ -794,75 +848,5 @@ component cacheuse="transactional"
     }
 
     return this;
-  }
-
-  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  private any     function getReverseField( required string cfc, required string fkColumn, required string type, required string singular_or_plural="singular" )
-  {
-    var properties = structFindKey( getInheritedProperties(), "cfc", "all" );
-    var field = 0;
-    var fieldFound = false;
-
-    if( not arrayLen( properties ))
-    {
-      // ERROR: not linked to any CFCs
-      writeDump( arguments );
-      abort;
-    }
-
-    for( property in properties )
-    {
-      field = property.owner;
-      if(
-          not (
-            (
-              structKeyExists( field, "fkcolumn" ) and
-              field.fkColumn eq fkColumn
-            ) or
-            field.cfc eq cfc
-          )
-        )
-      {
-        continue;
-      }
-
-      if( field.cfc eq cfc )
-      {
-        fieldFound = true;
-        break;
-      }
-
-      if( isInstanceOf( createObject( cfc ), field.cfc ))
-      {
-        fieldFound = true;
-        break;
-      }
-    }
-
-    var propertyWithFK = structFindValue({ 'search' = properties }, fkColumn, 'all' );
-
-    if( arrayLen( propertyWithFK ) eq 1 )
-    {
-      field = propertyWithFK[1].owner;
-      fieldFound = true;
-    }
-
-    if( not fieldFound )
-    {
-      // ERROR: no valid properties found in #listLast( local.meta.name, '.' )#
-      writeDump( arguments );
-      writeDump( getMetaData( this ));
-      writeDump( properties );
-      abort;
-    }
-
-    result = field.name;
-
-    if( singular_or_plural eq "singular" and structKeyExists( field, 'singularName' ))
-    {
-      result = field['singularName'];
-    }
-
-    return result;
   }
 }
