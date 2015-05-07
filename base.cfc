@@ -6,31 +6,23 @@ component cacheuse="transactional"
 {
   property name="id" fieldType="id" generator="uuid";
   property name="name" fieldType="column" type="string" length=128;
-
   property name="deleted" fieldType="column" ORMType="boolean" default=false;
   property name="sortorder" fieldType="column" ORMType="integer";
-
-  property name="createContact" fieldType="many-to-one" FKColumn="createcontactid" cfc="contact";
+  property name="createContact" fieldType="many-to-one" FKColumn="createcontactid" cfc="model.contact";
   property name="createDate" fieldType="column" ORMType="timestamp";
   property name="createIP" fieldType="column"  length=15;
-
-  property name="updateContact" fieldType="many-to-one" FKColumn="updatecontactid" cfc="contact";
+  property name="updateContact" fieldType="many-to-one" FKColumn="updatecontactid" cfc="model.contact";
   property name="updateDate" fieldType="column" ORMType="timestamp";
   property name="updateIP" fieldType="column" length=15;
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public any      function init()
+  public any function init()
   {
-    lock scope="application" timeout="5"
-    {
-      variables.util = application.util;
-    }
-
     return this;
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public array    function getFieldsToDisplay( required type, struct formdata = {} )
+  public array function getFieldsToDisplay( required type, struct formdata = {} )
   {
     var properties = getInheritedProperties();
     var property = javaCast( "null", 0 );
@@ -95,13 +87,13 @@ component cacheuse="transactional"
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public boolean  function hasProperty( required string propertyToCheck )
+  public boolean function hasProperty( required string propertyToCheck )
   {
     return structKeyExists( getInheritedProperties(), propertyToCheck );
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public struct   function getInheritedProperties()
+  public struct function getInheritedProperties()
   {
     var meta = getMetaData( this );
     var result = {};
@@ -144,19 +136,19 @@ component cacheuse="transactional"
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public string   function getEntityName( string className = getClassName())
+  public string function getEntityName( string className = getClassName())
   {
     return ORMGetSessionFactory().getClassMetadata( className ).getEntityName();
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public string   function getClassName()
+  public string function getClassName()
   {
     return listLast( getMetaData( this ).fullname, "." );
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public any      function getReverseField( required string cfc, required string fkColumn, required string type, required string singular_or_plural="singular" )
+  public any function getReverseField( required string cfc, required string fkColumn, required string type, required string singular_or_plural="singular" )
   {
     var properties = structFindKey( getInheritedProperties(), "cfc", "all" );
     var field = 0;
@@ -243,7 +235,7 @@ component cacheuse="transactional"
    * @calledBy  Struct    Used to prevent inv. loops (don't keep adding the caller to the callee and vice versa)
    * @depth     Numeric   Used to prevent inv. loops (don't keep going infinitely)
    */
-  public any      function save( struct formData = {}, struct calledBy = { entity = '', id = '' }, numeric depth = 0 )
+  public any function save( struct formData = {}, struct calledBy = { entity = '', id = '' }, numeric depth = 0 )
   {
     var key = 0;
     var property = 0;
