@@ -8,10 +8,10 @@ component cacheuse="transactional"
   property name="name" fieldType="column" type="string" length=128;
   property name="deleted" fieldType="column" ORMType="boolean" default=false;
   property name="sortorder" fieldType="column" ORMType="integer";
-  property name="createContact" fieldType="many-to-one" FKColumn="createcontactid" cfc="model.contact";
+  property name="createContact" fieldType="many-to-one" FKColumn="createcontactid" cfc="root.model.contact";
   property name="createDate" fieldType="column" ORMType="timestamp";
   property name="createIP" fieldType="column"  length=15;
-  property name="updateContact" fieldType="many-to-one" FKColumn="updatecontactid" cfc="model.contact";
+  property name="updateContact" fieldType="many-to-one" FKColumn="updatecontactid" cfc="root.model.contact";
   property name="updateDate" fieldType="column" ORMType="timestamp";
   property name="updateIP" fieldType="column" length=15;
 
@@ -138,7 +138,11 @@ component cacheuse="transactional"
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   public string function getEntityName( string className = getClassName())
   {
-    return ORMGetSessionFactory().getClassMetadata( className ).getEntityName();
+    var sessionFactory = ORMGetSessionFactory();
+    var metaData = sessionFactory.getClassMetadata( listLast( className, '.' ));
+    var entityName = metaData.getEntityName();
+
+    return entityName;
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
