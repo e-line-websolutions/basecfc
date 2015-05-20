@@ -251,6 +251,7 @@ component cacheuse="transactional"
     var properties = getInheritedProperties();
     var canBeLogged = request.context.config.log;
     var uuid = createUUID();
+    var defaultFields = "createDate,createIP,createContact,updateDate,updateIP,updateContact,log,id,fieldnames,#entityName#id";
 
     param name="request.ormActions" default="#{}#";
     param name="formData.deleted" default=false;
@@ -299,6 +300,8 @@ component cacheuse="transactional"
       var display = depth gt 0 ? ' style="display:none;"' : '';
 
       // DEBUG:
+      writeOutput( serializeJSON( formData ));
+
       writeOutput( '
         <table cellpadding="5" cellspacing="0" border="1" width="100%">
           <tr>
@@ -308,9 +311,25 @@ component cacheuse="transactional"
             <td colspan="2">
               <table cellpadding="5" cellspacing="0" border="1" width="100%" id="#uuid#"#display#>
                 <tr>
-                  <td colspan="2">#getName()#</td>
+                  <th colspan="2">#getName()#</th>
                 </tr>
       ' );
+    }
+
+    if( arrayLen( structFindValue( meta, "onMissingMethod" )))
+    {
+      // this object can handle non-existing fields, so lets add those to the properties struct.
+      var formDataKeys = structKeyArray( formData );
+      for( var key in formDataKeys )
+      {
+        if( not structKeyExists( properties, key ))
+        {
+          properties[key] = {
+            "name" = key,
+            "jsonData" = true
+          };
+        }
+      }
     }
 
     // SAVE VALUES PASSED VIA FORM
@@ -320,15 +339,23 @@ component cacheuse="transactional"
 
       param name="property.fieldtype" default="string";
 
-      if( listFindNoCase( "log,createDate,createIP,createContact,updateDate,updateIP,updateContact,id", key ))
+      if( listFindNoCase( defaultFields, key ))
       {
         if( request.context.debug )
         {
           // DEBUG:
-          writeOutput( 'Skipped #key#, default field.<br />' );
+          writeOutput( '<tr><td colspan=2>Skipped #key#, default field.</td></tr>' );
         }
 
         continue;
+      }
+      else
+      {
+        if( request.context.debug )
+        {
+          // DEBUG:
+          writeOutput( '<tr><td colspan=2>Processing #key#</td></tr>' );
+        }
       }
 
       if( structKeyExists( property, "cfc" ))
@@ -571,7 +598,6 @@ component cacheuse="transactional"
 
             break;
           default:
-
             //  ______   ______        ______     __   __     ______
             // /\__  _\ /\  __ \      /\  __ \   /\ "-.\ \   /\  ___\
             // \/_/\ \/ \ \ \/\ \     \ \ \/\ \  \ \ \-.  \  \ \  __\
@@ -602,7 +628,7 @@ component cacheuse="transactional"
                 if( request.context.debug )
                 {
                   // DEBUG
-                  writeOutput( '<p>get#property.name#()</p>' );
+                  writeOutput( '<p>#local.fn#()</p>' );
                 }
 
                 if( isNull( local.inlineEntity ))
@@ -760,26 +786,28 @@ component cacheuse="transactional"
               }
 
               local.fn = "set" & property.name;
-              local.exec = this[local.fn];
+              // local.exec = this[local.fn];
 
               if( not isNull( local.value ))
               {
-                local.exec( local.value );
+                evaluate( "this.#local.fn#( local.value )" );
+                // local.exec( local.value );
 
                 if( request.context.debug )
                 {
                   // DEBUG
-                  writeOutput( '<p>set#property.name#( local.value )</p>' );
+                  writeOutput( '<p>#local.fn#( ' & local.value.toString() & ' )</p>' );
                 }
               }
               else
               {
-                local.exec( javaCast( 'null', 0 ));
+                evaluate( "this.#local.fn#( javaCast( 'null', 0 ))" );
+                // local.exec( javaCast( 'null', 0 ));
 
                 if( request.context.debug )
                 {
                   // DEBUG
-                  writeOutput( '<p>set#property.name#( NULL )</p>' );
+                  writeOutput( '<p>#local.fn#( NULL )</p>' );
                 }
               }
             }
