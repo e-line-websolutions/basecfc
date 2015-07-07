@@ -8,17 +8,17 @@ component cacheuse="transactional"
   property name="name" fieldType="column" type="string" length=128;
   property name="deleted" fieldType="column" ORMType="boolean" default=false;
   property name="sortorder" fieldType="column" ORMType="integer";
-  property name="createContact" fieldType="many-to-one" FKColumn="createcontactid" cfc="root.model.contact";
-  property name="createDate" fieldType="column" ORMType="timestamp";
-  property name="createIP" fieldType="column"  length=15;
-  property name="updateContact" fieldType="many-to-one" FKColumn="updatecontactid" cfc="root.model.contact";
-  property name="updateDate" fieldType="column" ORMType="timestamp";
-  property name="updateIP" fieldType="column" length=15;
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   public any function init()
   {
     return this;
+  }
+
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  public String function toString()
+  {
+    return serializeJSON( this );
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -44,7 +44,7 @@ component cacheuse="transactional"
           }
         }
 
-        var sortKey = structSort( tempProperties, 'numeric', 'asc', '.orderininline' );
+        var sortKey = structSort( tempProperties, 'numeric', 'asc', 'orderininline' );
         var currentField = "";
 
         for( key in sortKey )
@@ -115,8 +115,10 @@ component cacheuse="transactional"
 
       if( structKeyExists( meta, "properties" ))
       {
-        for( var property in meta.properties )
+        for( var i=1; i lte arrayLen( meta.properties ); i++ )
         {
+          var property = meta.properties[i];
+
           for( var field in property )
           {
             result[property.name][field] = property[field];
@@ -140,9 +142,8 @@ component cacheuse="transactional"
   {
     var sessionFactory = ORMGetSessionFactory();
     var metaData = sessionFactory.getClassMetadata( listLast( className, '.' ));
-    var entityName = metaData.getEntityName();
 
-    return entityName;
+    return metaData.getEntityName();
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -249,9 +250,9 @@ component cacheuse="transactional"
     var entityName = this.getEntityName();
     var CFCName = meta.name;
     var properties = getInheritedProperties();
-    var canBeLogged = request.context.config.log;
+    var canBeLogged = ( request.context.config.log and isInstanceOf( this, "root.model.logged" ));
     var uuid = createUUID();
-    var defaultFields = "createDate,createIP,createContact,updateDate,updateIP,updateContact,log,id,fieldnames,#entityName#id";
+    var defaultFields = "log,id,fieldnames,submitbutton,#entityName#id";
 
     param name="request.ormActions" default="#{}#";
     param name="formData.deleted" default=false;
