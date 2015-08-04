@@ -161,7 +161,8 @@ component cacheuse="transactional"
 
     if( not arrayLen( properties ))
     {
-      // ERROR: not linked to any CFCs
+      writeOutput( "ERROR: <b>#cfc#</b> not linked to any CFCs" );
+      writeDump( getInheritedProperties());
       writeDump( arguments );
       abort;
     }
@@ -288,10 +289,16 @@ component cacheuse="transactional"
       {
         if( not hasCreateContact())
         {
-          formData.createContact = request.context.auth.userID;
+          if( not structKeyExists( formData, "createContact" ) and structKeyExists( request.context, "auth" ) and structKeyExists( request.context.auth, "userID" ))
+          {
+            formData.createContact = request.context.auth.userID;
+          }
         }
 
-        formData.updateContact = request.context.auth.userID;
+        if( not structKeyExists( formData, "updateContact" ) and structKeyExists( request.context, "auth" ) and structKeyExists( request.context.auth, "userID" ))
+        {
+          formData.updateContact = request.context.auth.userID;
+        }
       }
     }
 
@@ -370,11 +377,12 @@ component cacheuse="transactional"
         {
           case "one-to-many":
           case "many-to-many":
-            //  ______   ______        __    __     ______     __   __     __  __
-            // /\__  _\ /\  __ \      /\ "-./  \   /\  __ \   /\ "-.\ \   /\ \_\ \
-            // \/_/\ \/ \ \ \/\ \     \ \ \-./\ \  \ \  __ \  \ \ \-.  \  \ \____ \
-            //    \ \_\  \ \_____\     \ \_\ \ \_\  \ \_\ \_\  \ \_\\"\_\  \/\_____\
-            //     \/_/   \/_____/      \/_/  \/_/   \/_/\/_/   \/_/ \/_/   \/_____/
+          // ████████╗ ██████╗       ███╗   ███╗ █████╗ ███╗   ██╗██╗   ██╗
+          // ╚══██╔══╝██╔═══██╗      ████╗ ████║██╔══██╗████╗  ██║╚██╗ ██╔╝
+          //    ██║   ██║   ██║█████╗██╔████╔██║███████║██╔██╗ ██║ ╚████╔╝
+          //    ██║   ██║   ██║╚════╝██║╚██╔╝██║██╔══██║██║╚██╗██║  ╚██╔╝
+          //    ██║   ╚██████╔╝      ██║ ╚═╝ ██║██║  ██║██║ ╚████║   ██║
+          //    ╚═╝    ╚═════╝       ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝
 
             // OVERRIDE to
             if( structKeyExists( formdata, property.name ))
@@ -545,9 +553,7 @@ component cacheuse="transactional"
 
                 if( not local.alreadyHasValue and not structKeyExists( request.ormActions, local.ormAction ))
                 {
-                  local.fn = "add" & property.singularName;
-                  local.exec = this[local.fn];
-                  local.exec( local.objectToLink );
+                  evaluate( "add#property.singularName#(local.objectToLink)" );
 
                   if( request.context.debug )
                   {
@@ -599,11 +605,12 @@ component cacheuse="transactional"
 
             break;
           default:
-            //  ______   ______        ______     __   __     ______
-            // /\__  _\ /\  __ \      /\  __ \   /\ "-.\ \   /\  ___\
-            // \/_/\ \/ \ \ \/\ \     \ \ \/\ \  \ \ \-.  \  \ \  __\
-            //    \ \_\  \ \_____\     \ \_____\  \ \_\\"\_\  \ \_____\
-            //     \/_/   \/_____/      \/_____/   \/_/ \/_/   \/_____/
+          // ████████╗ ██████╗        ██████╗ ███╗   ██╗███████╗
+          // ╚══██╔══╝██╔═══██╗      ██╔═══██╗████╗  ██║██╔════╝
+          //    ██║   ██║   ██║█████╗██║   ██║██╔██╗ ██║█████╗
+          //    ██║   ██║   ██║╚════╝██║   ██║██║╚██╗██║██╔══╝
+          //    ██║   ╚██████╔╝      ╚██████╔╝██║ ╚████║███████╗
+          //    ╚═╝    ╚═════╝        ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
             // inline forms
             if(
