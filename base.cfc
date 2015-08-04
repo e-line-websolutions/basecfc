@@ -1,3 +1,29 @@
+/*
+ORM Base class used in Mustang
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Mingo Hagen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 component cacheuse="transactional"
           defaultSort="sortorder"
 
@@ -880,5 +906,228 @@ component cacheuse="transactional"
     }
 
     return this;
+  }
+
+  public array function list()
+  {
+    param arguments.d           = 0;// rc.d(escending) default false (ASC)
+    param arguments.filterType  = "contains";
+    param arguments.maxResults  = 30;
+    param arguments.offset      = 0;
+    param arguments.orderby     = "";
+    param arguments.startsWith  = "";
+
+    param array arguments.filters = [];
+    param boolean arguments.showdeleted = 0;
+
+    var HQL = "";
+    var columnName = "";
+    var columnsInList = [];
+    var defaultSort = "";
+    var entityName = getEntityName();
+    var entityProperties = getMetaData( this );
+    var indexNr = 0;
+    var orderByString = "";
+    var properties = getInheritedProperties();
+    var queryOptions = { ignorecase = true, maxResults = maxResults, offset = offset };
+
+    if( structKeyExists( entityProperties, "defaultSort" ))
+    {
+      defaultSort = entityProperties.defaultSort;
+    }
+    else if( structKeyExists( entityProperties.extends, "defaultSort" ))
+    {
+      defaultSort = entityProperties.extends.defaultSort;
+    }
+
+    if( len( trim( orderby )))
+    {
+      var vettedOrderByString = "";
+
+      for( var orderField in listToArray( orderby ))
+      {
+        if( orderField contains ';' )
+        {
+          continue;
+        }
+
+        if( orderField contains ' ASC' or orderField contains ' DESC' )
+        {
+          orderField = listFirst( orderField, ' ' );
+        }
+
+        if( structKeyExists( properties, orderField ))
+        {
+          local.vettedOrderByString = listAppend( local.vettedOrderByString, orderField );
+        }
+      }
+
+      orderby = local.vettedOrderByString;
+
+      if( len( trim( orderby )))
+      {
+        defaultSort = orderby & ( d ? ' DESC' : '' );
+      }
+    }
+
+    orderby = replaceNoCase( defaultSort, ' ASC', '', 'all' );
+    orderby = replaceNoCase( orderby, ' DESC', '', 'all' );
+
+    if( defaultSort contains ' DESC' )
+    {
+      d = 1;
+    }
+    else if( defaultSort contains ' ASC' )
+    {
+      d = 0;
+    }
+
+    for( var orderByPart in listToArray( defaultSort ))
+    {
+      orderByString = listAppend( orderByString, "mainEntity.#orderByPart#" );
+    }
+
+    if( len( trim( startsWith )))
+    {
+      filters = [{
+        "field" = "name",
+        "filterOn" = replace( startsWith, '''', '''''', 'all' )
+      }];
+      filterType = "starts-with";
+    }
+
+    if( arrayLen( filters ))
+    {
+      var alsoFilterKeys = structFindKey( properties, 'alsoFilter' );
+      var alsoFilterEntity = "";
+      var whereBlock = " WHERE 0 = 0 ";
+      var whereParameters = {};
+      var counter = 0;
+
+      if( showdeleted eq 0 )
+      {
+        whereBlock &= " AND ( mainEntity.deleted IS NULL OR mainEntity.deleted = false ) ";
+      }
+
+      for( var filter in filters )
+      {
+        if( len( filter.field ) gt 2 and right( filter.field, 2 ) eq "id" )
+        {
+          whereBlock &= "AND mainEntity.#left( filter.field, len( filter.field ) - 2 )# = ( FROM #left( filter.field, len( filter.field ) - 2 )# WHERE id = :where_id )";
+          whereParameters["where_id"] = filter.filterOn;
+        }
+        else
+        {
+          if( filter.filterOn eq "NULL" )
+          {
+            whereBlock &= " AND ( ";
+            whereBlock &= " mainEntity.#lCase( filter.field )# IS NULL ";
+          }
+          else if( structKeyExists( properties[filter.field], "cfc" ))
+          {
+            whereBlock &= " AND ( ";
+            whereBlock &= " mainEntity.#lCase( filter.field )#.id = :where_#lCase( filter.field )# ";
+            whereParameters["where_#lCase( filter.field )#"] = filter.filterOn;
+          }
+          else
+          {
+            if( filterType eq "contains" )
+            {
+              filter.filterOn = "%#filter.filterOn#";
+            }
+
+            filter.filterOn = "#filter.filterOn#%";
+
+            whereBlock &= " AND ( ";
+            whereBlock &= " mainEntity.#lCase( filter.field )# LIKE :where_#lCase( filter.field )# ";
+            whereParameters["where_#lCase( filter.field )#"] = filter.filterOn;
+          }
+
+          for( var alsoFilterKey in alsoFilterKeys )
+          {
+            if( alsoFilterKey.owner.name neq filter.field )
+            {
+              continue;
+            }
+
+            counter++;
+            alsoFilterEntity &= " LEFT JOIN mainEntity.#listFirst( alsoFilterKey.owner.alsoFilter, '.' )# AS entity_#counter# ";
+            whereBlock &= " OR entity_#counter#.#listLast( alsoFilterKey.owner.alsoFilter, '.' )# LIKE '#filter.filterOn#' ";
+            whereParameters["where_#listLast( alsoFilterKey.owner.alsoFilter, '.' )#"] = filter.filterOn;
+          }
+          whereBlock &= " ) ";
+        }
+      }
+
+      if( structKeyExists( entityProperties, "where" ) and len( trim( entityProperties.where )))
+      {
+        whereBlock &= entityProperties.where;
+      }
+
+      var HQLcounter  = " SELECT COUNT( mainEntity ) AS total ";
+      var HQLselector  = " SELECT mainEntity ";
+
+      HQL = "";
+      HQL &= " FROM #lCase( entityName )# mainEntity ";
+      HQL &= alsoFilterEntity;
+      HQL &= whereBlock;
+
+      HQLcounter = HQLcounter & HQL;
+      HQLselector = HQLselector & HQL;
+
+      if( len( trim( orderByString )))
+      {
+        HQLselector &= " ORDER BY #orderByString# ";
+      }
+
+      alldata = ORMExecuteQuery( HQLselector, whereParameters, queryOptions );
+
+      if( arrayLen( alldata ) gt 0 )
+      {
+        recordCounter = ORMExecuteQuery( HQLcounter, whereParameters, { ignorecase = true })[1];
+      }
+    }
+    else
+    {
+      HQL = " FROM #lCase( entityName )# mainEntity ";
+
+      if( showDeleted )
+      {
+        HQL &= " WHERE mainEntity.deleted = TRUE ";
+      }
+      else
+      {
+        HQL &= " WHERE ( mainEntity.deleted IS NULL OR mainEntity.deleted = FALSE ) ";
+      }
+
+      if( len( trim( orderByString )))
+      {
+        HQL &= " ORDER BY #orderByString# ";
+      }
+
+      try
+      {
+        alldata = ORMExecuteQuery( HQL, {}, queryOptions );
+      }
+      catch( any e )
+      {
+        writeDump( e );
+        abort;
+        alldata = [];
+      }
+
+      if( arrayLen( alldata ) gt 0 )
+      {
+        recordCounter = ORMExecuteQuery( "SELECT COUNT( e ) AS total FROM #lCase( entityName )# AS e WHERE e.deleted != :deleted", { "deleted" = true }, { ignorecase = true })[1];
+        deleteddata = ORMExecuteQuery( "SELECT COUNT( mainEntity.id ) AS total FROM #lCase( entityName )# AS mainEntity WHERE mainEntity.deleted = :deleted", { "deleted" = true } )[1];
+
+        if( showdeleted )
+        {
+          recordCounter = deleteddata;
+        }
+      }
+    }
+
+    return alldata;
   }
 }
