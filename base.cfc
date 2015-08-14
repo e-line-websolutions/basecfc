@@ -50,7 +50,9 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   public string function toString(){
-    return serializeJSON( this );
+    var jsonified = deserializeJSON( serializeJSON( this ));
+    structDelete( jsonified, "password" );
+    return serializeJSON( jsonified );
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -162,10 +164,10 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public any function getReverseField( required string cfc,
-                                       required string fkColumn,
-                                       required string type,
-                                       required string singular_or_plural="singular" ){
+  public string function getReverseField( required string cfc,
+                                          required string fkColumn,
+                                          required string type,
+                                          required string singular_or_plural="singular" ){
     var properties = structFindKey( getInheritedProperties(), "cfc", "all" );
     var field = 0;
     var fieldFound = false;
@@ -180,10 +182,13 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     for( var property in properties ){
       field = property.owner;
 
-      if(!((
-        structKeyExists( field, "fkcolumn" ) &&
-        field.fkColumn == fkColumn
-      ) || field.cfc == cfc )){
+      if(!(
+        (
+          structKeyExists( field, "fkcolumn" ) &&
+          field.fkColumn == fkColumn
+        ) ||
+        field.cfc == cfc
+      )) {
         continue;
       }
 
@@ -226,6 +231,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       result = field['singularName'];
     }
 
+
     return result;
   }
 
@@ -245,7 +251,6 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     var savedState = {};
     var meta = getMetaData( this );
     var entityName = this.getEntityName();
-    var CFCName = meta.name;
     var properties = getInheritedProperties();
     var canBeLogged = ( variables.instance.config.log && isInstanceOf( this, "root.model.logged" ));
     var uuid = createUUID();
@@ -265,6 +270,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
             .basecfc-debug .call{font-family:sans-serif;font-size:12px;border:2px solid black;}
             .basecfc-debug h2{background:teal;cursor:pointer;color:white;padding:5px;margin:0}
             .basecfc-debug table{border-color:silver;font-size:12px;}
+            .result{color:red;}
           </style>
         ' );
       }
@@ -278,7 +284,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     }
 
     // Hard coded depth limit
-    if( depth > 6 ){
+    if( depth > 10 ){
       return;
     }
 
@@ -312,13 +318,12 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     }
 
     if( variables.instance.debug ){
-      var js = "document.getElementById('#uuid#').style.display=(document.getElementById('#uuid#').style.display==''?'none':'');";
+      var collapse = "document.getElementById('#uuid#').style.display=(document.getElementById('#uuid#').style.display==''?'none':'');";
       var display = depth > 0 ? ' style="display:none;"' : '';
 
       writeOutput( '
         <div class="call">
-          <h2 onclick="#js#">#entityName# #getID()#</h2>
-          <code class="prettyprint">#serializeJSON( formData )#</code>
+          <h2 onclick="#collapse#">#entityName# #getID()#</h2>
           <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#uuid#"#display#>
             <tr>
               <th colspan="2">Name: "#getName()#"</th>
@@ -343,43 +348,31 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     for( var key in properties ){
       var property = properties[key];
 
-      param property.fieldtype = "string";
-
-      if( listFindNoCase( defaultFields, key )){
-        if( variables.instance.debug ){
-          writeOutput( '<tr><td colspan=2 style="color:silver">Skipped #key#, default field.</td></tr>' );
-        }
-
-        continue;
-      } else if(
-        !structKeyExists( formdata, property.name ) &&
-        !(
-            structKeyExists( formData, "add_#property.name#" ) ||
-            (
-              structKeyExists( property, "singularName" ) &&
-              structKeyExists( formData, "add_#property.singularName#"
-            )
-          )
-        ) &&
-        !structKeyExists( formData, "set_#property.name#" ) &&
-        !(
-            structKeyExists( formData, "remove_#property.name#" ) ||
-            (
-              structKeyExists( property, "singularName" ) &&
-              structKeyExists( formData, "remove_#property.singularName#"
-            )
+      // Skip default fields (like buttons and PKs) and property not found in form or internal update fields
+      if( // default field:
+          listFindNoCase( defaultFields, key ) ||
+          (
+            // not in form
+            !( structKeyExists( formdata, property.name )) &&
+            // not added:
+            !( structKeyExists( formData, "add_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists( formData, "add_#property.singularName#" ))) &&
+            // not set:
+            !( structKeyExists( formData, "set_#property.name#" )) &&
+            // not removed:
+            !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists( formData, "remove_#property.singularName#" )))
           )
         )
-      ){
-
-        if( variables.instance.debug ){
-          writeOutput( '<tr><td colspan=2 style="color:silver">Skipped #property.name#, not in formdata.</td></tr>' );
-        }
-
+      {
         continue;
-      } else if( variables.instance.debug ){
-        writeOutput( '<tr><td colspan=2>Processing <b>#key#</b></td></tr>' );
       }
+
+      var reverseCFCLookup = meta.name;
+
+      if( listFindNoCase( logFields, key )){
+        reverseCFCLookup = "root.model.logged";
+      }
+
+      param string property.fieldtype = "string";
 
       if( structKeyExists( property, "cfc" )){
         var propertyEntityName = getEntityName( property.cfc );
@@ -430,8 +423,6 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
               local.workData = formdata[property.name];
               structDelete( formdata, property.name );
-            } else if( variables.instance.debug ) {
-              writeOutput( '<br />Skipping #property.name#' );
             }
 
             // REMOVE
@@ -448,7 +439,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
               for( var objectToOverride in local.objectsToOverride ){
                 if( property.fieldType == "many-to-many" ){
-                  local.reverseField = objectToOverride.getReverseField( CFCName, property.inverseJoinColumn, property.fieldtype, 'singular' );
+                  local.reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.inverseJoinColumn, property.fieldtype, 'singular' );
 
                   evaluate( "remove#local.reverseField#(this)" );
 
@@ -456,7 +447,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                     writeOutput( '<p>objectToOverride.remove#local.reverseField#(this)</p>' );
                   }
                 } else {
-                  local.reverseField = objectToOverride.getReverseField( CFCName, property.fkcolumn, property.fieldtype, 'plural' );
+                  local.reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.fkcolumn, property.fieldtype, 'plural' );
 
                   evaluate( "objectToOverride.set#local.reverseField#(javaCast('null',0))" );
 
@@ -527,7 +518,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                     writeOutput( local.ormAction );
                   }
 
-                  local.reverseField = local.objectToLink.getReverseField( CFCName, property.fkcolumn, property.fieldtype, 'singular' );
+                  local.reverseField = local.objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn, property.fieldtype, 'singular' );
 
                   if( property.fieldtype == "many-to-many" ){
                     updatedStruct['add_#local.reverseField#'] = '{"id":"#getID()#"}';
@@ -636,7 +627,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   }
 
                   local.inlineEntityParameters["#propertyEntityName#id"] = local.obj.getID();
-                  local.reverseField = local.obj.getReverseField( CFCName, property.fkcolumn, property.fieldtype, 'singular' );
+                  local.reverseField = local.obj.getReverseField( reverseCFCLookup, property.fkcolumn, property.fieldtype, 'singular' );
                   local.alreadyHasValue = evaluate( "local.obj.has#local.reverseField#(this)" );
 
                   if( variables.instance.debug ){
@@ -704,7 +695,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   var dbugAttr = local.value.toString();
                   if( isJSON( dbugAttr )){
                     writeOutput( '<p>#local.fn#() with:</p>' );
-                    writeOutput( '<code class="prettyprint">#dbugAttr#</code>' );
+                    writeOutput( '<code class="prettyprint">#replace( dbugAttr, ',', ', ', 'all' )#</code>' );
                   } else {
                     writeOutput( '<p>#local.fn#( #dbugAttr# )</p>' );
                   }
@@ -723,25 +714,20 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       }
 
       if( variables.instance.debug ){
-        if( listFindNoCase( logFields, property.name )){
-          writeOutput( '
-            <tr>
-              <th width="15%" valign="top" align="right">#key#</th>
-              <td width="85%">Log field</td>
-            </tr>
-          ' );
-        } else {
-          writeOutput( '
-            <tr>
-              <th width="15%" valign="top" align="right">#key#</th>
-              <td width="85%">#len( trim( local.debugoutput )) ? local.debugoutput : 'no action'#</td>
-            </tr>
-          ' );
-        }
+        var colID = createUuid();
+        var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
+        writeOutput( '
+          <tr>
+            <th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th>
+            <td width="85%" id="#colID#">#len( trim( local.debugoutput )) ? local.debugoutput : 'no action'#</td>
+          </tr>
+        ' );
       }
 
       if( structKeyExists( local, "valueToLog" )){
-        savedState[property.name] = local.valueToLog;
+        if( not listFindNoCase( logFields, property.name )){
+          savedState[property.name] = local.valueToLog;
+        }
         structDelete( local, "valueToLog" );
       }
     }
@@ -756,24 +742,25 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     if( depth == 0 &&
         canBeLogged &&
         entityName neq "logentry" ){
-      var tempLogentry = { "entity" = this, "deleted" = false };
+      var logFormData = {
+            entity = this.getID(),
+            deleted = false
+          };
 
       if( structKeyExists( form, "logentry_note" )){
-        tempLogentry["note"] = form.logentry_note;
+        logFormData.note = form.logentry_note;
       }
 
       if( structKeyExists( form, "logentry_attachment" )){
-        tempLogentry["attachment"] = form.logentry_attachment;
+        logFormData.attachment = form.logentry_attachment;
       }
 
-      local.logentry = entityNew( "logentry", tempLogentry );
+      var logentry = entityNew( "logentry" );
+      entitySave( logentry );
 
-      entitySave( local.logentry );
-
-      local.logaction = entityLoad( "logaction", { name = "changed" }, true );
-      local.logentry.enterIntoLog( local.logaction, savedState );
-
-      variables.instance.log = local.logentry;
+      variables.instance.log = logentry
+        .save( logFormData )
+        .enterIntoLog( "changed", savedState );
     }
 
     if( variables.instance.debug ){
@@ -781,7 +768,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     }
 
     if( depth == 0 && variables.instance.debug ){
-      writeOutput( '<code class="prettyprint">#serializeJSON( variables.instance.ormActions )#</code></div>' );
+      writeOutput( '<code class="prettyprint">#replace( serializeJSON( variables.instance.ormActions ), ',', ', ', 'all' )#</code></div>' );
     }
 
     return this;
