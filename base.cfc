@@ -31,7 +31,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
   property name="sortorder" fieldType="column" ORMType="integer";
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public any function init(){
+  public any function init() hint="Initializes the object" {
     variables.instance = {
       ormActions = {},
       debug = false,
@@ -52,7 +52,8 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
   }
 
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public string function toString( obj=this ){
+  // By Adam Tuttle (http://fusiongrokker.com/post/deorm).
+  public string function toString( obj=this ) hint="Returns a JSON representation of the object" {
     var deWormed = {};
 
     if( isSimpleValue( obj )){
@@ -65,7 +66,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
         if( md.keyExists( 'properties' )){
           for( var prop in md.properties){
             if( structKeyExists( obj, 'get' & prop.name )){
-              if( prop.fieldtype == "id" || !prop.keyExists( 'fieldtype' ) || ( prop.keyExists( 'fieldtype' ) && !( listFindNoCase( "one-to-many,many-to-one,one-to-one,many-to-many", prop.fieldtype ) ))){
+              if( !prop.keyExists( 'fieldtype' ) || prop.fieldtype == "id" || ( prop.keyExists( 'fieldtype' ) && !( listFindNoCase( "one-to-many,many-to-one,one-to-one,many-to-many", prop.fieldtype )))){
                 deWormed[ prop.name ] = invoke( obj, "get#prop.name#" );
               }
             }
@@ -181,17 +182,17 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
         break;
       }
 
-      var testObj = createObject( cfc );
+      var testObj = createObject( cfc ).init();
 
       if( isInstanceOf( testObj, field.cfc )){
         fieldFound = 2;
         break;
       }
 
-      // if( testObj.getClassName() == field.cfc ){
-      //   fieldFound = 3;
-      //   break;
-      // }
+      if( testObj.getClassName() == field.cfc ){
+        fieldFound = 3;
+        break;
+      }
     }
 
     var propertyWithFK = structFindValue({ a = propertiesWithCFC }, fkColumn, 'all' );
@@ -228,6 +229,11 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                             numeric depth = 0 ){
     var timer = getTickCount();
     var savedState = {};
+
+    if( not structKeyExists( variables, "instance" )) {
+      throw( type="basecfc.global", message="Basecfc not initialised" );
+    }
+
     var meta = variables.instance.meta;
     var entityName = this.getEntityName();
     var properties = variables.instance.inheritedProperties;
@@ -267,7 +273,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       return;
     }
 
-    if( canBeLogged && !( depth > 0 && isInstanceOf( this, "root.model.contact" ))){
+    if( canBeLogged && !( depth > 0 && isInstanceOf( this, "root.model.contact" ))) {
       if( !len( trim( getCreateDate()))){
         formData.createDate = now();
       }
@@ -601,24 +607,21 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
             // save value and link objects together
             if( structKeyExists( formdata, property.name )){
-              var tmpValue = formdata[property.name];
+              var value = formdata[property.name];
+              var valueToLog = "";
 
-              if( isSimpleValue( tmpValue )) {
-                if( isJSON( tmpValue )){
-                  tmpValue = deserializeJSON( tmpValue );
+              if( isSimpleValue( value )) {
+                if( isJSON( value )){
+                  tmpValue = deserializeJSON( value );
 
-                  if( isStruct( tmpValue )){
-                    if( !structKeyExists( tmpValue, "id" )) {
-                      throw( type="basecfc.save", message="save() ERROR: Missing pk for a many-to-one relation" );
-                    }
-
-                    tmpValue = tmpValue.id;
+                  if( isStruct( tmpValue ) && structKeyExists( tmpValue, "id" )){
+                    value = tmpValue.id;
                   }
                 }
+
+                valueToLog = left( value, 255 );
               }
 
-              var value = tmpValue;
-              var valueToLog = left( value, 255 );
 
               if( structKeyExists( property, "cfc" )){
                 // LINK TO OTHER OBJECT (USING PROVIDED ID)
