@@ -1,18 +1,19 @@
 component extends="testbox.system.BaseSpec" {
-  function beforeAll(){
+  function beforeAll() {
     addMatchers({
-      toBeJSON = function( expectation, args={}){ return isJSON( expectation.actual ); }
+      toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
+      notToBeJSON = function( expectation, args={}) { return !isJSON( expectation.actual ); }
     });
 
     ORMReload();
   }
 
-  function afterEach(){
+  function afterEach() {
     ORMFlush();
   }
 
-  function run(){
-    describe( "Test helper methods.", function(){
+  function run() {
+    describe( "Test helper methods.", function() {
       var obj = entityNew( "test" );
 
       it( "Expects toString() to return a json representation of the entity.", function() {
@@ -84,13 +85,13 @@ component extends="testbox.system.BaseSpec" {
           .toBe( "duplicate" )
           .notToBe( "more" );
 
-        expect( function(){
+        expect( function() {
           obj.getReverseField( "root.model.more", "notAnExistingFK" );
         }).toThrow( type="basecfc.getReverseField", regex="no reverse field found" );
       });
     });
 
-    describe( "Test basic save function.", function(){
+    describe( "Test basic save function.", function() {
       var obj = entityNew( "test" );
       obj.save({ name="InvalidName" });
       entitySave( obj );
@@ -116,18 +117,18 @@ component extends="testbox.system.BaseSpec" {
       });
     });
 
-    describe( "Test save function with one-to-many relations.", function(){
-      beforeEach( function( currentSpec ){
+    describe( "Test save function with one-to-many relations.", function() {
+      beforeEach( function( currentSpec ) {
         obj = entityNew( "test" );
         obj.save({ name="InvalidName" });
         entitySave( obj );
       });
 
-      afterEach(function( currentSpec ){
+      afterEach(function( currentSpec ) {
         structDelete( variables, "obj" );
       });
 
-      it( "Expects save({add_data=obj}) to be able to add a one-to-many object using object", function(){
+      it( "Expects save({add_data=obj}) to be able to add a one-to-many object using object", function() {
         var other = entityNew( "other" );
         entitySave( other );
 
@@ -145,7 +146,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( other );
       });
 
-      it( "Expects save({add_data=123}) to be able to add a one-to-many object using pk", function(){
+      it( "Expects save({add_data=123}) to be able to add a one-to-many object using pk", function() {
         var other = entityNew( "other" );
         entitySave( other );
 
@@ -163,7 +164,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( other );
       });
 
-      it( "Expects save({add_data={id:123}}) to be able to add a one-to-many object using pk in struct", function(){
+      it( "Expects save({add_data={id:123}}) to be able to add a one-to-many object using pk in struct", function() {
         var other = entityNew( "other" );
         entitySave( other );
 
@@ -181,7 +182,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( other );
       });
 
-      it( "Expects save({add_data='{id:123}'}) to be able to add a one-to-many object using pk in json", function(){
+      it( "Expects save({add_data='{id:123}'}) to be able to add a one-to-many object using pk in json", function() {
         var other = entityNew( "other" );
         entitySave( other );
 
@@ -199,7 +200,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( other );
       });
 
-      it( "Expects save({add_data={name='test'}}) to be able to add a NEW one-to-many object", function(){
+      it( "Expects save({add_data={name='test'}}) to be able to add a NEW one-to-many object", function() {
         var saveData = {
           add_entityInSubfolder = {
             name = "MyNewObject",
@@ -219,7 +220,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( "MyNewObject" );
       });
 
-      it( "Expects save({add_data=[data]}) to be able to add multiple one-to-many objects", function(){
+      it( "Expects save({add_data=[data]}) to be able to add multiple one-to-many objects", function() {
         var first = entityNew( "other" );
         entitySave( first );
         first.getID();
@@ -248,7 +249,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( second );
       });
 
-      it( "Expects save({set_data=[data]}) to replace all items in a one-to-many relation", function(){
+      it( "Expects save({set_data=[data]}) to replace all items in a one-to-many relation", function() {
         var first = entityNew( "other" ).save({name='first'});
         entitySave( first );
         var second = entityNew( "other" ).save({name='second'});
@@ -286,18 +287,18 @@ component extends="testbox.system.BaseSpec" {
       });
     });
 
-    describe( "Test save function with many-to-one relations.", function(){
-      beforeEach( function( currentSpec ){
+    describe( "Test save function with many-to-one relations.", function() {
+      beforeEach( function( currentSpec ) {
         obj = entityNew( "test" );
         obj.save({ name="InvalidName" });
         entitySave( obj );
       });
 
-      afterEach(function( currentSpec ){
+      afterEach(function( currentSpec ) {
         structDelete( variables, "obj" );
       });
 
-      it( "Expects save({data=obj}) to be able to add a many-to-one object using object", function(){
+      it( "Expects save({data=obj}) to be able to add a many-to-one object using object", function() {
         var more = entityNew( "more" );
         entitySave( more );
 
@@ -311,7 +312,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( more );
       });
 
-      it( "Expects save({data=123}) to be able to add a many-to-one object using pk", function(){
+      it( "Expects save({data=123}) to be able to add a many-to-one object using pk", function() {
         var more = entityNew( "more" );
         entitySave( more );
 
@@ -325,7 +326,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( more );
       });
 
-      it( "Expects save({data={id=123}}) to be able to add a many-to-one object using pk in struct", function(){
+      it( "Expects save({data={id=123}}) to be able to add a many-to-one object using pk in struct", function() {
         var more = entityNew( "more" );
         entitySave( more );
 
@@ -339,7 +340,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( more );
       });
 
-      it( "Expects save({data='{id:123}'}) to be able to add a many-to-one object using pk in json", function(){
+      it( "Expects save({data='{id:123}'}) to be able to add a many-to-one object using pk in json", function() {
         var more = entityNew( "more" );
         entitySave( more );
 
@@ -353,7 +354,7 @@ component extends="testbox.system.BaseSpec" {
           .toBe( more );
       });
 
-      it( "Expects save({data={name='test'}}) to be able to add a NEW many-to-one object", function(){
+      it( "Expects save({data={name='test'}}) to be able to add a NEW many-to-one object", function() {
         var saveData = {
           more = {
             name = "newMore",
