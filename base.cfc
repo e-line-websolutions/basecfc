@@ -44,7 +44,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     variables.instance.meta = getMetaData();
     variables.instance.inheritedProperties = getInheritedProperties();
 
-    if( structKeyExists( request, "context" ) && isStruct( request.context )){
+    if( structKeyExists( request, "context" ) && isStruct( request.context )) {
       structAppend( variables.instance, request.context, true );
     }
 
@@ -226,7 +226,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
    */
   public any function save( struct formData = {},
                             struct calledBy = { entity = '', id = '' },
-                            numeric depth = 0 ){
+                            numeric depth = 0 ) {
     var timer = getTickCount();
     var savedState = {};
 
@@ -244,7 +244,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
     param formData.deleted = false;
 
-    if( !structKeyExists( request, "basecfc-save" )){
+    if( !structKeyExists( request, "basecfc-save" )) {
       request["basecfc-save"] = true;
       if( variables.instance.debug ){
         writeOutput( '
@@ -261,7 +261,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       }
     }
 
-    if( variables.instance.debug ){
+    if( variables.instance.debug ) {
       if( depth == 0 ){
         writeOutput( '<div class="basecfc-debug">' );
       }
@@ -269,7 +269,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     }
 
     // Hard coded depth limit
-    if( depth > 10 ){
+    if( depth > 10 ) {
       return;
     }
 
@@ -302,7 +302,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       }
     }
 
-    if( variables.instance.debug ){
+    if( variables.instance.debug ) {
       var collapse = "document.getElementById('#uuid#').style.display=(document.getElementById('#uuid#').style.display==''?'none':'');";
       var display = depth > 0 ? ' style="display:none;"' : '';
 
@@ -316,7 +316,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
       ' );
     }
 
-    if( arrayLen( structFindValue( meta, "onMissingMethod" ))){
+    if( arrayLen( structFindValue( meta, "onMissingMethod" ))) {
       // this object can handle non-existing fields, so lets add those to the properties struct.
       var formDataKeys = structKeyArray( formData );
       for( var key in formDataKeys ){
@@ -330,7 +330,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
     }
 
     // SAVE VALUES PASSED VIA FORM
-    for( var key in properties ){
+    for( var key in properties ) {
       var property = properties[key];
 
       // Skip default fields (like buttons and PKs) and property not found in form or internal update fields
@@ -346,24 +346,24 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
             // not removed:
             !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists( formData, "remove_#property.singularName#" )))
           )
-        ){
+        ) {
         continue;
       }
 
       var reverseCFCLookup = meta.name;
 
-      if( listFindNoCase( logFields, key )){
+      if( listFindNoCase( logFields, key )) {
         reverseCFCLookup = "root.model.logged";
       }
 
       param string property.fieldtype = "string";
 
-      if( structKeyExists( property, "cfc" )){
+      if( structKeyExists( property, "cfc" )) {
         var propertyEntityName = getEntityName( property.cfc );
       }
 
       savecontent variable="debugoutput" {
-        switch( property.fieldtype ){
+        switch( property.fieldtype ) {
           case "one-to-many":
           case "many-to-many":
             // ████████╗ ██████╗       ███╗   ███╗ █████╗ ███╗   ██╗██╗   ██╗
@@ -374,29 +374,29 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
             //    ╚═╝    ╚═════╝       ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝
 
             // Alias for set_ which overwrites linked data with new data
-            if( structKeyExists( formdata, property.name )){
+            if( structKeyExists( formdata, property.name )) {
               formdata["set_#property.name#"] = formdata[property.name];
             }
 
             // REMOVE
-            if( structKeyExists( formdata, "set_#property.name#" ) || structKeyExists( formdata, "remove_#property.name#" )){
+            if( structKeyExists( formdata, "set_#property.name#" ) || structKeyExists( formdata, "remove_#property.name#" )) {
               query = "SELECT b FROM #entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
               params = { "id" = getID() };
 
-              if( structKeyExists( formdata, "remove_#property.name#" )){
+              if( structKeyExists( formdata, "remove_#property.name#" )) {
                 query &= " AND b.id IN ( :list )";
                 params['list'] = listToArray( formdata['remove_#property.name#'] );
               }
 
               objectsToOverride = ORMExecuteQuery( query, params );
 
-              for( var objectToOverride in objectsToOverride ){
-                if( property.fieldType == "many-to-many" ){
+              for( var objectToOverride in objectsToOverride ) {
+                if( property.fieldType == "many-to-many" ) {
                   reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.inverseJoinColumn );
 
                   evaluate( "remove#reverseField#(this)" );
 
-                  if( variables.instance.debug ){
+                  if( variables.instance.debug ) {
                     writeOutput( '<p>objectToOverride.remove#reverseField#(this)</p>' );
                   }
                 } else {
@@ -404,43 +404,43 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
                   evaluate( "objectToOverride.set#reverseField#(javaCast('null',0))" );
 
-                  if( variables.instance.debug ){
+                  if( variables.instance.debug ) {
                     writeOutput( '<p>objectToOverride.set#reverseField#(javaCast(''null'',0))</p>' );
                   }
                 }
 
                 evaluate( "remove#property.singularName#(objectToOverride)" );
 
-                if( variables.instance.debug ){
+                if( variables.instance.debug ) {
                   writeOutput( '<p>remove#property.singularName#(objectToOverride)</p>' );
                 }
               }
             }
 
             // SET
-            if( structKeyExists( formdata, "set_#property.name#" )){
+            if( structKeyExists( formdata, "set_#property.name#" )) {
               var workData = formdata["set_#property.name#"];
 
-              if( isSimpleValue( workData )){
-                if( isJSON( workData )){
+              if( isSimpleValue( workData )) {
+                if( isJSON( workData )) {
                   workData = deserializeJSON( workData );
                 } else {
                   workData = listToArray( workData );
                 }
               }
 
-              if( !isArray( workData )){
+              if( !isArray( workData )) {
                 workData = [ workData ];
               }
 
               // workData = deSerializeJSON( '[' & formdata["set_#property.name#"] & ']' );
 
-              if( arrayLen( workData )){
+              if( arrayLen( workData )) {
                 formdata["add_#property.singularName#"] = "";
               }
 
-              for( var toAdd in workData ){
-                if( !isJSON( toAdd )){
+              for( var toAdd in workData ) {
+                if( !isJSON( toAdd )) {
                   toAdd = serializeJSON( toAdd );
                 }
 
@@ -451,76 +451,79 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
             }
 
             // ADD
-            if( structKeyExists( formdata, "add_#property.singularName#" )){
+            if( structKeyExists( formdata, "add_#property.singularName#" )) {
               workData = formdata["add_#property.singularName#"];
 
-              if( isSimpleValue( workData )){
-                if( isJSON( workData )){
+              if( isSimpleValue( workData )) {
+                if( isJSON( workData )) {
                   workData = deSerializeJSON( workData );
                 } else {
                   var itemList = workData;
                   workData = [];
-                  for( var itemID in itemList ){
+                  for( var itemID in itemList ) {
                     arrayAppend( workData, { "id" = itemID });
                   }
                 }
               }
 
-              if( !isArray( workData )){
+              if( !isArray( workData )) {
                 workData = [ workData ];
               }
 
-              for( var updatedStruct in workData ){
-                if( isObject( updatedStruct )){
+              for( var updatedStruct in workData ) {
+                if( isObject( updatedStruct )) {
                   objectToLink = updatedStruct;
                 } else {
-                  if( isJSON( updatedStruct )){
+                  if( isJSON( updatedStruct )) {
                     updatedStruct = deSerializeJSON( updatedStruct );
                   }
 
-                  if( isStruct( updatedStruct ) && structKeyExists( updatedStruct, "id" )){
+                  if( isStruct( updatedStruct ) && structKeyExists( updatedStruct, "id" )) {
                     objectToLink = entityLoadByPK( propertyEntityName, updatedStruct.id );
                     structDelete( updatedStruct, "id" );
                   }
 
-                  if( isNull( objectToLink )){
+                  if( isNull( objectToLink )) {
                     objectToLink = entityNew( propertyEntityName );
                     entitySave( objectToLink );
                   }
                 }
 
+                // must init object so meta data is set:
+                objectToLink = objectToLink.init();
+
                 alreadyHasValue = evaluate( "has#property.singularName#(objectToLink)" );
 
-                if( variables.instance.debug ){
+                if( variables.instance.debug ) {
                   writeOutput( '<p>this.has#property.singularName#( #objectToLink.getName()# #objectToLink.getID()# ) -> #alreadyHasValue#</p>' );
                 }
 
                 ormAction = "#getID()#_#objectToLink.getID()#";
 
-                if( !alreadyHasValue && !structKeyExists( variables.instance.ormActions, ormAction )){
+                if( !alreadyHasValue && !structKeyExists( variables.instance.ormActions, ormAction )) {
                   evaluate( "add#property.singularName#(objectToLink)" );
 
-                  if( variables.instance.debug ){
+                  if( variables.instance.debug ) {
                     writeOutput( '<p>add#property.singularName#(objectToLink)</p>' );
                     writeOutput( ormAction );
                   }
 
                   reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
 
-                  if( property.fieldtype == "many-to-many" ){
+                  if( property.fieldtype == "many-to-many" ) {
                     updatedStruct['add_#reverseField#'] = '{"id":"#getID()#"}';
                     variables.instance.ormActions[ormAction] = property.name;
                   } else {
                     updatedStruct[reverseField] = getID();
                     variables.instance.ormActions[ormAction] = property.name;
                   }
-                } else if( variables.instance.debug ){
+                } else if( variables.instance.debug ) {
                   writeOutput( '<p>skipped add#property.singularName#(objectToLink) - already did that once</p>' );
                 }
 
                 // Go down the rabbit hole:
-                if( structCount( updatedStruct )){
-                  if( variables.instance.debug ){
+                if( structCount( updatedStruct )) {
+                  if( variables.instance.debug ) {
                     writeOutput( '<b>ADD .save()</b>' );
                   }
 
@@ -537,7 +540,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
             }
 
             // CLEANUP
-            if( structKeyExists( local, "workData" )){
+            if( structKeyExists( local, "workData" )) {
               structDelete( local, "workData" );
             }
 
@@ -565,18 +568,18 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   )
                 )
               ) {
-              if( propertyEntityName == calledBy.entity ){
+              if( propertyEntityName == calledBy.entity ) {
                 // this prevents invinite loops
                 var inlineEntity = entityLoadByPK( "#calledBy.entity#", calledBy.id );
               } else {
                 var inlineEntity = evaluate( "get#property.name#()" );
 
-                if( isNull( inlineEntity )){
-                  if( structKeyExists( formData, "#property.name#id" )){
+                if( isNull( inlineEntity )) {
+                  if( structKeyExists( formData, "#property.name#id" )) {
                     var inlineEntity = entityLoadByPK( propertyEntityName, formData["#property.name#id"] );
                   }
 
-                  if( isNull( inlineEntity )){
+                  if( isNull( inlineEntity )) {
                     var inlineEntity = entityNew( propertyEntityName );
                     entitySave( inlineEntity );
                   }
@@ -589,32 +592,35 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   structAppend( inlineEntityParameters, formData[property.name] );
                 }
 
-                for( var formField in formData ){
-                  if( listLen( formField, '_' ) gte 2 && listFirst( formField, "_" ) == property.name ){
+                for( var formField in formData ) {
+                  if( listLen( formField, '_' ) gte 2 && listFirst( formField, "_" ) == property.name ) {
                     inlineEntityParameters[listRest( formField, "_" )] = formData[formField];
                   }
                 }
 
                 if( structKeyExists( formdata, property.name ) &&
                     isJSON( formdata[property.name] ) &&
-                    !structCount( inlineEntityParameters )){
+                    !structCount( inlineEntityParameters )) {
                   inlineEntityParameters = deSerializeJSON( formdata[property.name] );
                 }
               }
+
+              // must init object so meta data is set:
+              inlineEntity = inlineEntity.init();
 
               formdata[property.name] = inlineEntity.getID();
             }
 
             // save value and link objects together
-            if( structKeyExists( formdata, property.name )){
+            if( structKeyExists( formdata, property.name )) {
               var value = formdata[property.name];
               var valueToLog = "";
 
               if( isSimpleValue( value )) {
-                if( isJSON( value )){
+                if( isJSON( value )) {
                   tmpValue = deserializeJSON( value );
 
-                  if( isStruct( tmpValue ) && structKeyExists( tmpValue, "id" )){
+                  if( isStruct( tmpValue ) && structKeyExists( tmpValue, "id" )) {
                     value = tmpValue.id;
                   }
                 }
@@ -623,7 +629,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
               }
 
 
-              if( structKeyExists( property, "cfc" )){
+              if( structKeyExists( property, "cfc" )) {
                 // LINK TO OTHER OBJECT (USING PROVIDED ID)
                 if( !isNull( inlineEntity )) {
                   var obj = inlineEntity;
@@ -632,7 +638,10 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   var obj = entityLoadByPK( propertyEntityName, value );
                 }
 
-                if( !isNull( obj )){
+                if( !isNull( obj )) {
+                  // must init object so meta data is set:
+                  obj = obj.init();
+
                   if( isNull( inlineEntityParameters)) {
                     var inlineEntityParameters = {};
                   }
@@ -641,32 +650,32 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
                   var reverseField = obj.getReverseField( reverseCFCLookup, property.fkcolumn );
                   var alreadyHasValue = evaluate( "obj.has#reverseField#(this)" );
 
-                  if( variables.instance.debug ){
+                  if( variables.instance.debug ) {
                     writeOutput( '<p>obj.has#reverseField#( #getID()# ) -> #alreadyHasValue#</p>' );
                   }
 
                   var ormAction = "#getID()#_#obj.getID()#";
 
-                  if( !alreadyHasValue && !structKeyExists( variables.instance.ormActions, ormAction )){
-                    if( variables.instance.debug ){
+                  if( !alreadyHasValue && !structKeyExists( variables.instance.ormActions, ormAction )) {
+                    if( variables.instance.debug ) {
                       writeOutput( ormAction );
                     }
 
                     inlineEntityParameters['add_#reverseField#'] = '{"id":"#getID()#"}';
                     variables.instance.ormActions[ormAction] = property.name;
-                  } else if( variables.instance.debug ){
+                  } else if( variables.instance.debug ) {
                     writeOutput( '<p>skipped add_#reverseField# - already did that once</p>' );
                   }
 
-                  if( structCount( inlineEntityParameters )){
-                    if( variables.instance.debug ){
+                  if( structCount( inlineEntityParameters )) {
+                    if( variables.instance.debug ) {
                       writeOutput( '<b>.save()</b>' );
                     }
 
                     try{
                       obj.save( depth = ( depth + 1 ), calledBy = { entity = entityName, id = getID()}, formData = inlineEntityParameters );
                     } catch( any cfcatch ) {
-                      if( variables.instance.debug ){
+                      if( variables.instance.debug ) {
                         writeDump( inlineEntityParameters );
                         writeDump( cfcatch );
                         abort;
@@ -688,12 +697,12 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
               } else {
                 // SIMPLE VALUE
                 // make sure integers are saved as that:
-                if( structKeyExists( property, "ORMType" )){
-                  if( property.ORMType == "int" || property.ORMType == "integer" ){
+                if( structKeyExists( property, "ORMType" )) {
+                  if( property.ORMType == "int" || property.ORMType == "integer" ) {
                     value = int( val( value ));
                   }
 
-                  if( property.ORMType == "float" ){
+                  if( property.ORMType == "float" ) {
                     value = val( value );
                   }
                 }
@@ -701,10 +710,10 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
               fn = "set" & property.name;
 
-              if( !isNull( value )){
-                if( variables.instance.debug ){
+              if( !isNull( value )) {
+                if( variables.instance.debug ) {
                   var dbugAttr = value.toString();
-                  if( isJSON( dbugAttr )){
+                  if( isJSON( dbugAttr )) {
                     writeOutput( '<p>#fn#() with:</p>' );
                     writeOutput( '<code class="prettyprint">#replace( dbugAttr, ',', ', ', 'all' )#</code>' );
                   } else {
@@ -714,7 +723,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
                 evaluate( "this.#fn#(value)" );
               } else {
-                if( variables.instance.debug ){
+                if( variables.instance.debug ) {
                   writeOutput( '<p>#fn#( NULL )</p>' );
                 }
 
@@ -724,7 +733,7 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
         }
       }
 
-      if( variables.instance.debug ){
+      if( variables.instance.debug ) {
         var colID = createUuid();
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
         writeOutput( '
@@ -735,15 +744,15 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
         ' );
       }
 
-      if( structKeyExists( local, "valueToLog" )){
-        if( not listFindNoCase( logFields, property.name )){
+      if( structKeyExists( local, "valueToLog" )) {
+        if( not listFindNoCase( logFields, property.name )) {
           savedState[property.name] = valueToLog;
         }
         structDelete( local, "valueToLog" );
       }
     }
 
-    if( variables.instance.debug ){
+    if( variables.instance.debug ) {
       writeOutput( '
         </table>
       </div>
@@ -752,221 +761,44 @@ component cacheuse="transactional" defaultSort="sortorder" mappedSuperClass=true
 
     if( depth == 0 &&
         canBeLogged &&
-        entityName neq "logentry" ){
+        entityName neq "logentry" ) {
       var logFormData = {
             entity = this.getID(),
             deleted = false
           };
 
-      if( structKeyExists( form, "logentry_note" )){
+      if( structKeyExists( form, "logentry_note" )) {
         logFormData.note = form.logentry_note;
       }
 
-      if( structKeyExists( form, "logentry_attachment" )){
+      if( structKeyExists( form, "logentry_attachment" )) {
         logFormData.attachment = form.logentry_attachment;
       }
 
       var logentry = entityNew( "logentry" );
       entitySave( logentry );
 
+      // must init object so meta data is set:
+      logentry = logentry.init();
+
       variables.instance.log = logentry
         .save( logFormData )
         .enterIntoLog( "changed", savedState );
     }
 
-    if( variables.instance.debug ){
+    if( variables.instance.debug ) {
       writeOutput( getTickCount() - timer & "ms" );
     }
 
-    if( depth == 0 && variables.instance.debug ){
+    if( depth == 0 && variables.instance.debug ) {
       writeOutput( '<code class="prettyprint">#replace( serializeJSON( variables.instance.ormActions ), ',', ', ', 'all' )#</code></div>' );
     }
 
     return this;
   }
 
-  public array function list(){
-    param arguments.d           = 0;// rc.d(escending) default false (ASC)
-    param arguments.filterType  = "contains";
-    param arguments.maxResults  = 30;
-    param arguments.offset      = 0;
-    param arguments.orderby     = "";
-    param arguments.startsWith  = "";
-
-    param array arguments.filters = [];
-    param boolean arguments.showdeleted = 0;
-
-    var HQL = "";
-    var columnName = "";
-    var columnsInList = [];
-    var defaultSort = "";
-    var entityName = getEntityName();
-    var entityProperties = variables.instance.meta;
-    var indexNr = 0;
-    var orderByString = "";
-    var properties = variables.instance.inheritedProperties;
-    var queryOptions = { ignorecase = true, maxResults = maxResults, offset = offset };
-
-    if( structKeyExists( entityProperties, "defaultSort" )){
-      defaultSort = entityProperties.defaultSort;
-    } else if( structKeyExists( entityProperties.extends, "defaultSort" )){
-      defaultSort = entityProperties.extends.defaultSort;
-    }
-
-    if( len( trim( orderby ))){
-      var vettedOrderByString = "";
-
-      for( var orderField in listToArray( orderby )){
-        if( orderField contains ';' ){
-          continue;
-        }
-
-        if( orderField contains ' ASC' || orderField contains ' DESC' ){
-          orderField = listFirst( orderField, ' ' );
-        }
-
-        if( structKeyExists( properties, orderField )){
-          vettedOrderByString = listAppend( vettedOrderByString, orderField );
-        }
-      }
-
-      orderby = vettedOrderByString;
-
-      if( len( trim( orderby ))){
-        defaultSort = orderby & ( d ? ' DESC' : '' );
-      }
-    }
-
-    orderby = replaceNoCase( defaultSort, ' ASC', '', 'all' );
-    orderby = replaceNoCase( orderby, ' DESC', '', 'all' );
-
-    if( defaultSort contains ' DESC' ){
-      d = 1;
-    } else if( defaultSort contains ' ASC' ){
-      d = 0;
-    }
-
-    for( var orderByPart in listToArray( defaultSort )){
-      orderByString = listAppend( orderByString, "mainEntity.#orderByPart#" );
-    }
-
-    if( len( trim( startsWith ))){
-      filters = [{
-        "field" = "name",
-        "filterOn" = replace( startsWith, '''', '''''', 'all' )
-      }];
-      filterType = "starts-with";
-    }
-
-    if( arrayLen( filters )){
-      var alsoFilterKeys = structFindKey( properties, 'alsoFilter' );
-      var alsoFilterEntity = "";
-      var whereBlock = " WHERE 0 = 0 ";
-      var whereParameters = {};
-      var counter = 0;
-
-      if( showdeleted == 0 ){
-        whereBlock &= " AND ( mainEntity.deleted IS NULL OR mainEntity.deleted = false ) ";
-      }
-
-      for( var filter in filters ){
-        if( len( filter.field ) > 2 && right( filter.field, 2 ) == "id" ){
-          whereBlock &= "AND mainEntity.#left( filter.field, len( filter.field ) - 2 )# = ( FROM #left( filter.field, len( filter.field ) - 2 )# WHERE id = :where_id )";
-          whereParameters["where_id"] = filter.filterOn;
-        } else {
-          if( filter.filterOn == "NULL" ){
-            whereBlock &= " AND ( ";
-            whereBlock &= " mainEntity.#lCase( filter.field )# IS NULL ";
-          } else if( structKeyExists( properties[filter.field], "cfc" )){
-            whereBlock &= " AND ( ";
-            whereBlock &= " mainEntity.#lCase( filter.field )#.id = :where_#lCase( filter.field )# ";
-            whereParameters["where_#lCase( filter.field )#"] = filter.filterOn;
-          } else {
-            if( filterType == "contains" ){
-              filter.filterOn = "%#filter.filterOn#";
-            }
-
-            filter.filterOn = "#filter.filterOn#%";
-
-            whereBlock &= " AND ( ";
-            whereBlock &= " mainEntity.#lCase( filter.field )# LIKE :where_#lCase( filter.field )# ";
-            whereParameters["where_#lCase( filter.field )#"] = filter.filterOn;
-          }
-
-          for( var alsoFilterKey in alsoFilterKeys ){
-            if( alsoFilterKey.owner.name neq filter.field ){
-              continue;
-            }
-
-            counter++;
-            alsoFilterEntity &= " LEFT JOIN mainEntity.#listFirst( alsoFilterKey.owner.alsoFilter, '.' )# AS entity_#counter# ";
-            whereBlock &= " OR entity_#counter#.#listLast( alsoFilterKey.owner.alsoFilter, '.' )# LIKE '#filter.filterOn#' ";
-            whereParameters["where_#listLast( alsoFilterKey.owner.alsoFilter, '.' )#"] = filter.filterOn;
-          }
-          whereBlock &= " ) ";
-        }
-      }
-
-      if( structKeyExists( entityProperties, "where" ) && len( trim( entityProperties.where ))){
-        whereBlock &= entityProperties.where;
-      }
-
-      var HQLcounter  = " SELECT COUNT( mainEntity ) AS total ";
-      var HQLselector  = " SELECT mainEntity ";
-
-      HQL = "";
-      HQL &= " FROM #lCase( entityName )# mainEntity ";
-      HQL &= alsoFilterEntity;
-      HQL &= whereBlock;
-
-      HQLcounter = HQLcounter & HQL;
-      HQLselector = HQLselector & HQL;
-
-      if( len( trim( orderByString ))){
-        HQLselector &= " ORDER BY #orderByString# ";
-      }
-
-      alldata = ORMExecuteQuery( HQLselector, whereParameters, queryOptions );
-
-      if( arrayLen( alldata ) > 0 ){
-        recordCounter = ORMExecuteQuery( HQLcounter, whereParameters, { ignorecase = true })[1];
-      }
-    } else {
-      HQL = " FROM #lCase( entityName )# mainEntity ";
-
-      if( showDeleted ){
-        HQL &= " WHERE mainEntity.deleted = TRUE ";
-      } else {
-        HQL &= " WHERE ( mainEntity.deleted IS NULL OR mainEntity.deleted = FALSE ) ";
-      }
-
-      if( len( trim( orderByString ))){
-        HQL &= " ORDER BY #orderByString# ";
-      }
-
-      try{
-        alldata = ORMExecuteQuery( HQL, {}, queryOptions );
-      } catch( any e ) {
-        writeDump( e );
-        abort;
-        alldata = [];
-      }
-
-      if( arrayLen( alldata ) > 0 ){
-        recordCounter = ORMExecuteQuery( "SELECT COUNT( e ) AS total FROM #lCase( entityName )# AS e WHERE e.deleted != :deleted", { "deleted" = true }, { ignorecase = true })[1];
-        deleteddata = ORMExecuteQuery( "SELECT COUNT( mainEntity.id ) AS total FROM #lCase( entityName )# AS mainEntity WHERE mainEntity.deleted = :deleted", { "deleted" = true } )[1];
-
-        if( showdeleted ){
-          recordCounter = deleteddata;
-        }
-      }
-    }
-
-    return alldata;
-  }
-
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  public array function getFieldsToDisplay( type="inlineedit-line", struct formdata={} ){
+  public array function getFieldsToDisplay( type="inlineedit-line", struct formdata={} ) {
     var properties = variables.instance.inheritedProperties;
     var key = "";
     var result = [];
