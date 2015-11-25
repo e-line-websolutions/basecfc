@@ -1,15 +1,22 @@
 component{
-  this.name = "basecfctests";
+  this.name = request.appName = "basecfctests";
   this.mappings = {
     "/root" = getDirectoryFromPath( getCurrentTemplatePath()),
     "/testbox" = "G:\Dropbox\Projects\thirdparty\testbox"
   };
+
   this.datasource = "basecfc";
-  this.ORMEnabled = true;
-  this.ORMSettings = {
-    CFCLocation = "/root/model",
-    dbcreate = "dropcreate",
-    flushatrequestend = false,
-    automanageSession = false
-  };
+  this.ormEnabled = true;
+
+  this.ORMSettings.saveMapping = false;
+  this.ORMSettings.cfcLocation = "/model";
+  this.ORMSettings.dbCreate = "dropcreate";
+  // this.ORMSettings.flushAtRequestEnd = false;
+  // this.ORMSettings.autoManageSession = false;
+
+  request.context.debug = false;
+
+  public void function onRequestStart() {
+    ORMReload();
+  }
 }

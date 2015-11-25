@@ -1,20 +1,22 @@
 component extends="testbox.system.BaseSpec" {
   function beforeAll() {
     addMatchers({
-      toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
-      notToBeJSON = function( expectation, args={}) { return !isJSON( expectation.actual ); }
+               toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
+            notToBeJSON = function( expectation, args={}) { return !isJSON( expectation.actual ); },
+         toBeInstanceOf = function( expectation, args={}) { return isInstanceOf( expectation.actual, args[1] ); },
+      notToBeInstanceOf = function( expectation, args={}) { return !isInstanceOf( expectation.actual, args[1] ); }
     });
-
-    ORMReload();
-  }
-
-  function afterEach() {
-    ORMFlush();
   }
 
   function run() {
     describe( "Test helper methods.", function() {
-      var obj = entityNew( "test" );
+      beforeEach( function( currentSpec ) {
+        obj = entityNew( "test" );
+      });
+
+      afterEach( function( currentSpec ) {
+        structDelete( variables, "obj" );
+      });
 
       it( "Expects toString() to return a json representation of the entity.", function() {
         expect( obj.toString())
@@ -86,24 +88,38 @@ component extends="testbox.system.BaseSpec" {
           .notToBe( "more" );
 
         expect( function() {
+          obj.getReverseField( "root.model.more", "moreid" );
+        }).notToThrow();
+
+        expect( function() {
           obj.getReverseField( "root.model.more", "notAnExistingFK" );
         }).toThrow( type="basecfc.getReverseField", regex="no reverse field found" );
       });
+
+      // it( "Expects getReverseField( cfc, fk ) to work with multiple FKs of the same name.", function() {
+      // });
     });
 
     describe( "Test basic save function.", function() {
-      var obj = entityNew( "test" );
-      obj.save({ name="InvalidName" });
-      entitySave( obj );
+      beforeEach( function( currentSpec ) {
+        obj = entityNew( "test" );
+        entitySave( obj );
+        obj.save({ name="InvalidNameBasicSave" });
+      });
+
+      afterEach( function( currentSpec ) {
+        structDelete( variables, "obj" );
+      });
 
       it( "Expects save() to return the entity", function() {
         expect( obj.save())
-          .toBeTypeOf( 'component' );
+          .toBeTypeOf( 'component' )
+          .toBeInstanceOf( 'root.model.test' );
       });
 
       it( "Expects save({name='test'}) to change name (a string) to 'test'", function() {
         expect( obj.getName())
-          .toBe( 'InvalidName' );
+          .toBe( 'InvalidNameBasicSave' );
 
         var saveData = {
           name="test"
@@ -113,7 +129,7 @@ component extends="testbox.system.BaseSpec" {
 
         expect( alteredObj.getName())
           .toBe( 'test' )
-          .notToBe( 'InvalidName' );
+          .notToBe( 'InvalidNameBasicSave' );
       });
     });
 
@@ -124,7 +140,7 @@ component extends="testbox.system.BaseSpec" {
         entitySave( obj );
       });
 
-      afterEach(function( currentSpec ) {
+      afterEach( function( currentSpec ) {
         structDelete( variables, "obj" );
       });
 
@@ -137,12 +153,13 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder )
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( other );
       });
 
@@ -155,12 +172,13 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder)
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( other );
       });
 
@@ -173,12 +191,13 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder)
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( other );
       });
 
@@ -191,12 +210,13 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder)
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( other );
       });
 
@@ -211,12 +231,13 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder)
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( saved.getEntitiesInSubfolder()[1].getName() )
+        expect( savedEntitiesInSubfolder[1].getName() )
           .toBe( "MyNewObject" );
       });
 
@@ -237,52 +258,62 @@ component extends="testbox.system.BaseSpec" {
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder)
           .toBeArray()
           .toHaveLength( 2 );
 
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( first );
 
-        expect( saved.getEntitiesInSubfolder()[2] )
+        expect( savedEntitiesInSubfolder[2] )
           .toBe( second );
       });
 
       it( "Expects save({set_data=[data]}) to replace all items in a one-to-many relation", function() {
-        var first = entityNew( "other" ).save({name='first'});
+        var testEntities = [];
+
+        var first = entityNew( "other" ).save({ name = "first" });
         entitySave( first );
-        var second = entityNew( "other" ).save({name='second'});
+        arrayAppend( testEntities, first );
+
+        var second = entityNew( "other" ).save({ name = "second" });
         entitySave( second );
-        var third = entityNew( "other" ).save({name='third'});
+        arrayAppend( testEntities, second );
+
+        var third = entityNew( "other" ).save({ name = "third" });
         entitySave( third );
+        arrayAppend( testEntities, third );
 
         var saveData = {
-          entitiesInSubfolder = "#first.getID()#,#second.getID()#"
+          "entitiesInSubFolder" = [ testEntities[1], testEntities[2]]
         };
 
         var saved = obj.save( saveData );
+        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder();
 
-        expect( saved.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder )
           .toBeArray()
           .toHaveLength( 2 );
-        expect( saved.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( first );
-        expect( saved.getEntitiesInSubfolder()[2] )
+        expect( savedEntitiesInSubfolder[2] )
           .toBe( second );
 
-        ormFlush();
+        ormFlush(); // write to database, so added items can be found in next test
 
         var overwriteData = {
-          entitiesInSubfolder = [ third ]
+          "entitiesInSubFolder" = [ third ]
         };
 
         var newSave = obj.save( overwriteData );
+        var savedEntitiesInSubfolder = newSave.getEntitiesInSubfolder();
 
-        expect( newSave.getEntitiesInSubfolder())
+        expect( savedEntitiesInSubfolder )
           .toBeArray()
           .toHaveLength( 1 );
-        expect( newSave.getEntitiesInSubfolder()[1] )
+        expect( savedEntitiesInSubfolder[1] )
           .toBe( third );
       });
     });
@@ -292,6 +323,7 @@ component extends="testbox.system.BaseSpec" {
         obj = entityNew( "test" );
         obj.save({ name="InvalidName" });
         entitySave( obj );
+        ormFlush();
       });
 
       afterEach(function( currentSpec ) {
@@ -302,14 +334,14 @@ component extends="testbox.system.BaseSpec" {
         var more = entityNew( "more" );
         entitySave( more );
 
+        var savedMore = entityLoadByPK( "more", more.getID());
         var saveData = {
-          more = more
+          more = savedMore
         };
-
         var saved = obj.save( saveData );
 
-        expect( saved.getMore())
-          .toBe( more );
+        expect( saved.getMore().getID())
+          .toBe( savedMore.getID() );
       });
 
       it( "Expects save({data=123}) to be able to add a many-to-one object using pk", function() {
@@ -336,8 +368,8 @@ component extends="testbox.system.BaseSpec" {
 
         var saved = obj.save( saveData );
 
-        expect( saved.getMore())
-          .toBe( more );
+        expect( saved.getMore().getID())
+          .toBe( more.getID() );
       });
 
       it( "Expects save({data='{id:123}'}) to be able to add a many-to-one object using pk in json", function() {
