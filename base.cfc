@@ -753,7 +753,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
                 }
 
-                evaluate( "#fn#(value)" );
+                try {
+                  evaluate( "#fn#(value)" );
+                } catch( any e ) {
+                  writeLog( type = "error", text = "#entityName#.#fn#(?) failed", file = request.appName );
+                }
 
                 structDelete( local, "value" );
                 structDelete( variables, "value" );
@@ -789,7 +793,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if( structKeyExists( local, "valueToLog" )) {
-        if( not listFindNoCase( logFields, property.name )) {
+        if( !listFindNoCase( logFields, property.name )) {
           savedState[property.name] = valueToLog;
         }
         structDelete( local, "valueToLog" );
