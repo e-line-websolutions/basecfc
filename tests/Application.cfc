@@ -11,12 +11,13 @@ component{
   this.ORMSettings.saveMapping = false;
   this.ORMSettings.cfcLocation = "/model";
   this.ORMSettings.dbCreate = "dropcreate";
-  // this.ORMSettings.flushAtRequestEnd = false;
-  // this.ORMSettings.autoManageSession = false;
+  this.ORMSettings.flushAtRequestEnd = false;
+  this.ORMSettings.autoManageSession = false;
 
-  request.context.debug = false;
+  param boolean url.debug=false;
+
+  request.context.debug = url.debug;
 
   public void function onRequestStart() {
-    ORMReload();
   }
 }
