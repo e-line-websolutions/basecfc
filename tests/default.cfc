@@ -278,7 +278,7 @@ component extends="testbox.system.BaseSpec" {
         var saveData = {
           add_entityInSubfolder = [
             { id = first.getID()},
-            second
+            second.getID()
           ]
         };
 
