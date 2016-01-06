@@ -221,37 +221,37 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       request.basecfc.instructionsOrder = {};
       request.basecfc.queuedInstructions = {};
       request.basecfc.queuedObjects = { "0" = this };
+    }
 
-      if( canBeLogged && !isInstanceOf( this, "root.model.contact" )) {
-        if( !len( trim( getCreateDate()))) {
-          formData.createDate = now();
-        }
+    for( var logField in listToArray( logFields )) {
+      structDelete( formData, logField );
+    }
 
-        if( !len( trim( getCreateIP()))) {
-          formData.createIP = cgi.remote_host;
-        }
+    if( canBeLogged && ( depth == 0 || entityName == "logentry" )) {
+      if( !len( trim( getCreateDate()))) {
+        formData.createDate = now();
+      }
 
-        formData.updateDate = now();
-        formData.updateIP = cgi.remote_host;
+      if( !len( trim( getCreateIP()))) {
+        formData.createIP = cgi.remote_host;
+      }
 
-        if( !variables.instance.config.disableSecurity ) {
-          if( !hasCreateContact()) {
-            if( !structKeyExists( formData, "createContact" ) &&
-                structKeyExists( variables.instance, "auth" ) &&
-                structKeyExists( variables.instance.auth, "userID" )) {
-              formData.createContact = variables.instance.auth.userID;
-            }
-          }
+      formData.updateDate = now();
+      formData.updateIP = cgi.remote_host;
 
-          if( !structKeyExists( formData, "updateContact" ) &&
+      if( !variables.instance.config.disableSecurity ) {
+        if( !hasCreateContact()) {
+          if( !structKeyExists( formData, "createContact" ) &&
               structKeyExists( variables.instance, "auth" ) &&
               structKeyExists( variables.instance.auth, "userID" )) {
-            formData.updateContact = variables.instance.auth.userID;
+            formData.createContact = variables.instance.auth.userID;
           }
         }
-      } else {
-        for( var logField in listToArray( logFields )) {
-          structDelete( formData, logField );
+
+        if( !structKeyExists( formData, "updateContact" ) &&
+            structKeyExists( variables.instance, "auth" ) &&
+            structKeyExists( variables.instance.auth, "userID" )) {
+          formData.updateContact = variables.instance.auth.userID;
         }
       }
     }
@@ -297,7 +297,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // This object can handle non-existing fields, so lets add those to the properties struct.
     if( arrayLen( structFindValue( variables.instance.meta, "onMissingMethod" ))) {
       for( var key in structKeyArray( formData )) {
-        if( !structKeyExists( inheritedProperties, key )) {
+        if( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( defaultFields, key )) {
           structInsert( inheritedProperties, key, {
             "name" = key,
             "jsonData" = true
@@ -754,11 +754,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // Process queued instructions
     if( depth == 0 ) {
       if( canBeLogged && entityName != "logentry" ) {
-        var logentry = entityNew( "logentry" ).init();
+        var logAction = ( structKeyExists( formData, "#getEntityName()#id" ) && formData["#getEntityName()#id"] == getID()) ?
+              "changed" :
+              "created";
+
+        var logentry = entityNew( "logentry" )
+              .init()
+              .enterIntoLog( logAction, savedState, this );
 
         entitySave( logentry );
-
-        logentry.enterIntoLog( "changed", savedState, this );
       }
 
       processQueue();
@@ -946,8 +950,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   /** Returns a simplified representation of the object
     * By Adam Tuttle ( http://fusiongrokker.com/post/deorm ).
+    * @data One or more entities to be converted to a less complex representation
     */
-  private any function deORM( required any data hint="One or more entities to be converted to a less complex representation" ) {
+  private any function deORM( required any data ) {
     var deWormed = {};
 
     if( isSimpleValue( data )) {
