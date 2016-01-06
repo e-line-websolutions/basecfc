@@ -41,7 +41,6 @@
 
   <!-- test frameworks -->
   <property name="testbox.local.url" value="/opt/ci/testbox_2.0.0.zip" />
-  <property name="mxunit.local.url" value="/opt/ci/fix-railo-nulls.zip" />
 
   <!-- Remote URLs -->
   <property name="railo40.remote.url" value="http://cfml-ci.s3.amazonaws.com/railo-express-4.0.4.001-nojre.tar.gz" />
@@ -54,7 +53,6 @@
   <property name="acf902-linux64.remote.url" value="http://cfml-ci.s3.amazonaws.com/cf902-linux64.tar.gz" />
 
   <property name="testbox.remote.url" value="http://downloads.ortussolutions.com/ortussolutions/testbox/2.0.0/testbox-2.0.0.zip" />
-  <property name="mxunit.remote.url" value="https://github.com/marcins/mxunit/archive/fix-railo-nulls.zip" />
 
   <!--
     ***
@@ -109,10 +107,6 @@ Valid values are:
   <!-- TestBox Properties -->
   <property name="testbox.directory" value="tests.testbox" />
 
-  <!-- MXUnit Properties -->
-  <property name="mxunit.jar" value="tests/ci/mxunit-ant.jar"/>
-  <property name="mxunit.output.jar" value="tests/ci/mxunit-output-ant.jar"/>
-
   <target name="install-ci-deps">
     <exec executable="/bin/bash" failonerror="true">
       <env key="WORK_DIR" value="${work.dir}" />
@@ -145,8 +139,6 @@ Valid values are:
   </target>
 
   <target name="test-ci" depends="start-server,test,stop-server">
-    <fail if="mxunit.failed" message="At least one test failure!"/>
-
     <property file="${output.dir}testbox.properties" />
     <fail if="testbox.failed" message="At least one test failure!" />
   </target>
@@ -160,28 +152,6 @@ Valid values are:
   <target description="Make output directories and run the TestBox task" name="run-tests-testbox">
     <get dest="${output.dir}/results.txt" src="http://${server.name}:${server.port}/${test.project}/tests/ci/testbox-runner.cfm?directory=${testbox.directory}&amp;reporter=text&amp;reportPath=${basedir}/${output.dir}" verbose="true" />
     <concat><path path="${output.dir}/output.txt" /></concat>
-  </target>
-
-  <target description="Make output directories and run the MXUnit task" name="run-tests-mxunit">
-    <taskdef classname="org.mxunit.ant.MXUnitAntTask" classpath="${mxunit.jar}" name="mxunittask"/>
-    <taskdef classname="au.com.imagichine.ant.MxunitOutputAntTask" classpath="${mxunit.output.jar}" name="mxunitoutputtask"/>
-    <mxunittask
-      defaultrunner="/${test.project}/tests/ci/HttpAntRunner.cfc"
-      outputdir="${output.dir}"
-      port="${server.port}" server="${server.name}"
-      testResultsSummary="${test.project}.summary"
-      verbose="false"
-      haltonerror="true" errorproperty="mxunit.error"
-      failureproperty="mxunit.failed">
-        <directory
-          componentPath="tests.mxunit"
-          packageName="${test.project}"
-          path="/${test.project}/tests/mxunit/"
-          recurse="false"
-          remoteMethod="run"/>
-    </mxunittask>
-    <mxunitoutputtask resultsdirectory="${output.dir}" />
-    <fail if="mxunit.error" message="An error occured running MXUnit" />
   </target>
 
 </project>

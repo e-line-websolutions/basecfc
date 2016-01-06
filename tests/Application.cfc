@@ -2,7 +2,8 @@ component{
   this.name = request.appName = "basecfctests";
   this.mappings = {
     "/root" = getDirectoryFromPath( getCurrentTemplatePath()),
-    "/testbox" = "G:\Dropbox\Projects\thirdparty\testbox"
+    "/tests" = getDirectoryFromPath(getCurrentTemplatePath()),
+    "/testbox" = getDirectoryFromPath(getCurrentTemplatePath()) & "../../testbox"
   };
 
   this.datasource = "basecfc";
