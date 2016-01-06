@@ -6,27 +6,28 @@ component{
     "/testbox" = getDirectoryFromPath(getCurrentTemplatePath()) & "../../testbox"
   };
 
-  this.datasources = {
-    basecfc = {
-      database    = "basecfc",
-      host        = "localhost",
-      port        = "5432",
-      type        = "PostgreSQL",
-      username    = "postgres",
-    }
+  this.datasources["basecfc"] = {
+    class = "org.postgresql.Driver",
+    connectionString = "jdbc:postgresql://localhost:5432/basecfc",
+    username = "postgres"
   };
-  this.ormEnabled = true;
 
-  this.ORMSettings.saveMapping = false;
-  this.ORMSettings.cfcLocation = "/model";
-  this.ORMSettings.dbCreate = "dropcreate";
-  this.ORMSettings.flushAtRequestEnd = false;
-  this.ORMSettings.autoManageSession = false;
+  this.ORMEnabled = true;
+
+  this.ORMSettings = {
+    datasource = "basecfc",
+    saveMapping = false,
+    cfcLocation = "/model",
+    dbCreate = "dropcreate"
+    // flushAtRequestEnd = false,
+    // autoManageSession = false
+  };
 
   param boolean url.debug=false;
 
   request.context.debug = url.debug;
 
   public void function onRequestStart() {
+    ORMReload();
   }
 }
