@@ -4,7 +4,6 @@ env:
   matrix:
     - PLATFORM=lucee451 TESTFRAMEWORK=testbox
     - PLATFORM=acf10-linux64 TESTFRAMEWORK=testbox
-    - PLATFORM=acf902-linux64 TESTFRAMEWORK=testbox
 
 install: ant -Dtest.framework=$TESTFRAMEWORK -Dsource=remote -Dwork.dir=$HOME/work -Dbuild.dir=$TRAVIS_BUILD_DIR -Dplatform=$PLATFORM install-ci-deps
 script: ant -Dtest.framework=$TESTFRAMEWORK -Dsource=remote -Dwork.dir=$HOME/work -Dbuild.dir=$TRAVIS_BUILD_DIR -Dplatform=$PLATFORM test-ci
