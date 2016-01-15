@@ -5,6 +5,8 @@ component extends="testbox.system.BaseSpec" {
     addMatchers({
                toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
             notToBeJSON = function( expectation, args={}) { return !isJSON( expectation.actual ); },
+         toHaveFunction = function( expectation, args={}) { return structKeyExists( expectation.actual, args[1] ); },
+      notToHaveFunction = function( expectation, args={}) { return !structKeyExists( expectation.actual, args[1] ); },
          toBeInstanceOf = function( expectation, args={}) { return isInstanceOf( expectation.actual, args[1] ); },
       notToBeInstanceOf = function( expectation, args={}) { return !isInstanceOf( expectation.actual, args[1] ); }
     });
@@ -62,7 +64,7 @@ component extends="testbox.system.BaseSpec" {
         expect( obj.getEntityName())
           .toBeString()
           .toBe( "test" )
-          .notToBe( "root.model.test" )
+          .notToMatch( "^.+\.test" )
           .notToBe( "droid" );
       });
 
@@ -70,27 +72,26 @@ component extends="testbox.system.BaseSpec" {
         expect( obj.getClassName())
           .toBeString()
           .toBe( "root.model.test" )
-          .notToBe( "droid" )
-          .notToBe( "test" );
+          .notToBe( "droid" );
+
+        var other = entityNew( "other" );
+
+        expect( other.getClassName())
+          .toBeString()
+          .toBe( "root.model.sub.other" )
+          .notToBe( "droid" );
       });
 
-      it( "Expects getReverseField( cfc, fk ) to return the field linking two entities together.", function() {
+      it( "Expects getReverseField() to return the field linking two entities together.", function() {
         // test one-to-many
-        expect( obj.getReverseField( "root.model.sub.other", "testid" ))
+        expect( obj.getReverseField( "root.model.multiple", "testid" ))
           .toBeString()
-          .toBe( "entityInSubfolder" );
+          .toBe( "multiple" );
 
         // test many-to-one
         expect( obj.getReverseField( "root.model.more", "moreid" ))
           .toBeString()
-          .toBe( "more" )
-          .notToBe( "duplicate" );
-
-        // test another link to same entity, different fk
-        expect( obj.getReverseField( "root.model.more", "duplicateid" ))
-          .toBeString()
-          .toBe( "duplicate" )
-          .notToBe( "more" );
+          .toBe( "more" );
 
         expect( function() {
           obj.getReverseField( "root.model.more", "moreid" );
@@ -101,8 +102,33 @@ component extends="testbox.system.BaseSpec" {
         }).toThrow( type="basecfc.getReverseField", regex="no reverse field found" );
       });
 
-      // it( "Expects getReverseField( cfc, fk ) to work with multiple FKs of the same name.", function() {
-      // });
+      it( "Expects getReverseField() to work on sub folders.", function() {
+        // root to sub folder (one-to-many)
+        expect( obj.getReverseField( "root.model.sub.other", "testid" ))
+          .toBeString()
+          .toBe( "entityInSubfolder" );
+
+        // from sub folder to root (many-to-one)
+        var other = entityNew( "other" );
+
+        expect( other.getReverseField( "root.model.test", "testid" ))
+          .toBeString()
+          .toBe( "test" );
+      });
+
+      it( "Expects getReverseField() to work with multiple FKs of the same name.", function() {
+        // test another link to same entity, different fk
+        expect( obj.getReverseField( "root.model.more", "duplicateid" ))
+          .toBeString()
+          .toBe( "duplicate" )
+          .notToBe( "more" );
+
+        // test many-to-one
+        expect( obj.getReverseField( "root.model.more", "moreid" ))
+          .toBeString()
+          .toBe( "more" )
+          .notToBe( "duplicate" );
+      });
     });
 
     describe( "Test basic save function.", function() {
@@ -164,9 +190,11 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "Test save function with one-to-many relations.", function() {
       beforeEach( function( currentSpec ) {
-        obj = entityNew( "test" );
-        obj.save({ name="InvalidName" });
-        entitySave( obj );
+        transaction {
+          obj = entityNew( "test" );
+          obj.save({ name="InvalidName" });
+          entitySave( obj );
+        }
       });
 
       afterEach( function( currentSpec ) {
@@ -340,13 +368,19 @@ component extends="testbox.system.BaseSpec" {
       });
 
       it( "Expects set_ to overwrite add_ in save()", function() {
-        var a = entityNew( "multiple" ).save({name="a"}); entitySave( a );
-        var b = entityNew( "multiple" ).save({name="b"}); entitySave( b );
-        var c = entityNew( "multiple" ).save({name="c"}); entitySave( c );
+        var testObjects = [
+          entityNew( "multiple" ).save({name="a"}),
+          entityNew( "multiple" ).save({name="b"}),
+          entityNew( "multiple" ).save({name="c"})
+        ];
+
+        for( testObject in testObjects ) {
+          entitySave( testObject );
+        }
 
         obj.save({
-          set_multiples = [ a, b ],
-          add_multiple = c
+          set_multiples = [ testObjects[1], testObjects[2] ],
+          add_multiple = testObjects[3]
         });
 
         var result = obj.getMultiples();
@@ -448,10 +482,16 @@ component extends="testbox.system.BaseSpec" {
 
         var saved = obj.save( saveData );
         var more = saved.getMore();
+
         expect( more )
-          .notToBeNULL();
+          .notToBeNULL()
+          .toBeInstanceOf( "root.model.more" )
+          .toHaveFunction( "getName" );
+
         expect( more.getName())
           .toBe( "newMore" );
+
+writeDump(obj);abort;
 
         // test the reverse link:
         var linkBack = more.getTests();
