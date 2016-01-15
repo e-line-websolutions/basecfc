@@ -42,7 +42,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       "debug" = false,
       "meta" = getMetaData(),
       "entities" = {},
-      "properties" = {}
+      "properties" = {},
+      "id" = createUUID(),
+      "new" = false
     };
 
     variables.instance.properties = getInheritedProperties();
@@ -63,6 +65,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     structAppend( variables.instance, arguments, true );
 
     return this;
+  }
+
+  public string function getID() {
+    return isNew() ? variables.instance.id : variables.id;
   }
 
   /** Returns a serialized JSON object (a string) representation of this object
@@ -235,7 +241,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if( depth == 0 ) {
       request.basecfc.instructionsOrder = {};
       request.basecfc.queuedInstructions = {};
-      request.basecfc.queuedObjects = { "0" = this };
+      request.basecfc.queuedObjects = { "#createUUID()#" = this };
     }
 
     for( var logField in listToArray( logFields )) {
@@ -472,53 +478,52 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               }
 
               for( var nestedData in workData ) {
-                // prep data to pass throush to nested objects (parses json/structs)
-                var updateStruct = parseUpdateStruct( nestedData );
-
                 // LINK TO OTHER OBJECT (USING PROVIDED ID)
                 var objectToLink = toComponent( nestedData, property.entityName );
 
-                if( structKeyExists( arguments, "calledBy" ) && compareObjects( objectToLink, calledBy )) {
-                  continue;
-                }
+                // prep data to pass throush to nested objects (parses json/structs)
+                var updateStruct = parseUpdateStruct( nestedData );
 
                 // trigger update
-                if( !isNull( objectToLink.getID()) && len( trim( objectToLink.getID())) ) {
+                if( isNew()) {
                   updateStruct["#property.entityName#id"] = objectToLink.getID();
                 }
 
                 var alreadyHasValue = false;
 
-                if( structKeyExists( request.basecfc.queuedInstructions, getID()) && structKeyExists( request.basecfc.queuedInstructions[getID()], "add#property.singularName#" )) {
+                if( structKeyExists( request.basecfc.queuedInstructions, getID()) &&
+                    structKeyExists( request.basecfc.queuedInstructions[getID()], "add#property.singularName#" )) {
                   alreadyHasValue = structKeyExists( request.basecfc.queuedInstructions[getID()]["add#property.singularName#"], objectToLink.getID());
                 }
 
                 if( !alreadyHasValue ) {
                   alreadyHasValue = evaluate( "has#property.singularName#(objectToLink)" );
-
-                  if( !alreadyHasValue ) {
-                    queueInstruction( this, getID(), "add#property.singularName#", objectToLink );
-
-                    var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
-
-                    if( property.fieldtype == "many-to-many" ) {
-                      updateStruct["add_#reverseField#"] = this;
-                    } else {
-                      updateStruct[reverseField] = this;
-                    }
-
-                    if( variables.instance.debug ) {
-                      writeLog( text = "called: #property.entityName#.save(#depth+1#)", file = request.appName );
-                    }
-
-                    // Go down the rabbit hole:
-                    objectToLink.save(
-                      depth = ( depth + 1 ),
-                      formData = updateStruct,
-                      calledBy = this
-                    );
-                  }
                 }
+
+                if( alreadyHasValue ) {
+                  continue;
+                }
+
+                queueInstruction( this, getID(), "add#property.singularName#", objectToLink );
+
+                var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
+
+                if( property.fieldtype == "many-to-many" ) {
+                  updateStruct["add_#reverseField#"] = this;
+                } else {
+                  updateStruct[reverseField] = this;
+                }
+
+                if( variables.instance.debug ) {
+                  writeLog( text = "called: #property.entityName#.save(#depth+1#)", file = request.appName );
+                }
+
+                // Go down the rabbit hole:
+                objectToLink.save(
+                  depth = ( depth + 1 ),
+                  formData = updateStruct,
+                  calledBy = this
+                );
               }
 
               structDelete( formdata, "add_#property.singularName#" );
@@ -558,7 +563,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                   if( structCount( updateStruct )) {
                     // provide entityID so an update triggers (instead of an insert)
-                    if( !isNull( objectToLink.getID())) {
+                    if( isNew()) {
                       updateStruct["#property.entityName#id"] = objectToLink.getID();
                     }
 
@@ -722,7 +727,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           instructionsTimer += ( getTickCount() - instructionTimer );
         }
       }
+
+      // instruct hibernate to save newly created objects:
+      entitySave( object );
     }
+
+    entitySave( this );
 
     if( variables.instance.debug ) {
       writeLog( text = "~~ finished queue in " & instructionsTimer & "ms. ~~", file = request.appName );
@@ -733,7 +743,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * processQueue() overwriting previous instructions so no duplicate actions
     * are taking place
     */
-  private void function queueInstruction( required component entity, string id="0", required string command, required any value ) {
+  private void function queueInstruction( required component entity, string id=createUUID(), required string command, required any value ) {
     param struct request.basecfc.instructionsOrder={};
     param struct request.basecfc.queuedInstructions={};
     param struct request.basecfc.queuedObjects={};
@@ -852,7 +862,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if( isNull( objectToLink )) {
         var objectToLink = entityNew( entityName );
-        entitySave( objectToLink );
       }
 
       // must init object so meta data is set:
@@ -966,6 +975,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var comparisonB = { obj = objB };
 
     return comparisonA.equals( comparisonB );
+  }
+
+  private boolean function isNew() {
+    variables.instance.new = ( !structKeyExists( variables, "id" ) || isNull( variables.id ) || !len( trim( variables.id )));
+
+    return variables.instance.new;
   }
 
   /** This method needs to be moved to a controller, since it has to do with output.

@@ -21,7 +21,6 @@ component extends="testbox.system.BaseSpec" {
       });
 
       afterEach( function( currentSpec ) {
-        ormFlush();
         structDelete( variables, "obj" );
       });
 
@@ -139,7 +138,6 @@ component extends="testbox.system.BaseSpec" {
       });
 
       afterEach( function( currentSpec ) {
-        ormFlush();
         structDelete( variables, "obj" );
       });
 
@@ -198,7 +196,6 @@ component extends="testbox.system.BaseSpec" {
       });
 
       afterEach( function( currentSpec ) {
-        ormFlush();
         structDelete( variables, "obj" );
       });
 
@@ -405,7 +402,6 @@ component extends="testbox.system.BaseSpec" {
       });
 
       afterEach(function( currentSpec ) {
-        ormFlush();
         structDelete( variables, "obj" );
       });
 
@@ -490,8 +486,6 @@ component extends="testbox.system.BaseSpec" {
 
         expect( more.getName())
           .toBe( "newMore" );
-
-writeDump(obj);abort;
 
         // test the reverse link:
         var linkBack = more.getTests();
