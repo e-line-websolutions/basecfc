@@ -24,10 +24,10 @@
   SOFTWARE.
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
-  property name="id" fieldType="id" generator="uuid";
+  property name="id" type="string" fieldType="id" generator="uuid";
   property name="name" type="string" length=128;
-  property name="deleted" ORMType="boolean" default=false;
-  property name="sortorder" ORMType="integer";
+  property name="deleted" type="boolean" ORMType="boolean" default=false;
+  property name="sortorder" type="integer" ORMType="integer";
 
   param request.appName="basecfc"; // hash( getBaseTemplatePath())
 
@@ -276,13 +276,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               for( var objectToOverride in objectsToOverride ) {
                 if( property.fieldType == "many-to-many" ) {
                   var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.inverseJoinColumn );
-                  queueInstruction( objectToOverride, objectToOverride.getID(), "remove#reverseField#", this );
+                  queueInstruction( objectToOverride, "remove#reverseField#", this );
                 } else {
                   var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.fkcolumn, false );
-                  queueInstruction( objectToOverride, objectToOverride.getID(), "set#reverseField#", "null" );
+                  queueInstruction( objectToOverride, "set#reverseField#", "null" );
                 }
 
-                queueInstruction( this, getID(), "remove#property.singularName#", objectToOverride );
+                queueInstruction( this, "remove#property.singularName#", objectToOverride );
               }
             }
 
@@ -344,7 +344,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               }
 
               for( var nestedData in workData ) {
-                var objectToLink = toComponent( nestedData, property.entityName );
+                var objectToLink = toComponent( nestedData, property );
 
                 if( !isNull( objectToLink )) {
                   if( structKeyExists( request.basecfc.queuedInstructions, getID()) &&
@@ -353,7 +353,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     continue; // already queued
                   }
 
-                  queueInstruction( this, getID(), "add#property.singularName#", objectToLink );
+                  queueInstruction( this, "add#property.singularName#", objectToLink );
 
                   var fkColumn = property.fieldtype == "many-to-many" ? property.inverseJoinColumn : property.fkcolumn;
                   var reverseField = objectToLink.getReverseField( reverseCFCLookup, fkColumn );
@@ -404,7 +404,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               var value = formdata[property.name];
 
               if( structKeyExists( property, "cfc" )) {
-                var objectToLink = toComponent( value, property.entityName );
+                var objectToLink = toComponent( value, property );
                 var updateStruct = parseUpdateStruct( value );
 
                 structDelete( local, "value" );
@@ -415,7 +415,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     continue; // already queued
                   }
 
-                  queueInstruction( this, getID(), fn, objectToLink );
+                  queueInstruction( this, fn, objectToLink );
 
                   var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
 
@@ -461,7 +461,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
                 }
 
-                queueInstruction( this, getID(), fn, value );
+                queueInstruction( this, fn, value );
 
                 valueToLog = left( value, 255 );
               }
@@ -481,7 +481,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   writeOutput( '<p>#fn#( #dbugAttr# )</p>' );
                 }
               } else {
-                queueInstruction( this, getID(), fn, "null" );
+                queueInstruction( this, fn, "null" );
 
                 if( variables.instance.debug ) {
                   writeOutput( '<p>#fn#( null )</p>' );
@@ -528,7 +528,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               "created";
 
         var logentry = entityNew( "logentry" )
-              .init()
+              // .init()
               .enterIntoLog( logAction, savedState, this );
 
         entitySave( logentry );
@@ -559,15 +559,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var meta = variables.instance.meta;
 
     if( !structKeyExists( meta, "extends" )) {
-      meta = { "extends" = meta };
+      // meta = { "extends" = meta };
     }
 
     var result = {};
+
+    // writeOutput( meta.fullname & "<br />" );
 
     do {
       if( structKeyExists( meta, "properties" )) {
         for( var property in meta.properties ) {
           if( structKeyExists( property, "cfc" )) {
+            // writeOutput( " - " & property.name & " (" & property.cfc & ") = " & getEntityName( property.cfc ) & "<br />" );
             result[property.name]["entityName"] = getEntityName( property.cfc );
           }
 
@@ -796,23 +799,25 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * processQueue() overwriting previous instructions so no duplicate actions
     * are taking place
     */
-  private void function queueInstruction( required component entity, required string id, required string command, required any value ) {
+  private void function queueInstruction( required component entity, required string command, required any value ) {
     param struct request.basecfc.instructionsOrder={};
     param struct request.basecfc.queuedInstructions={};
     param struct request.basecfc.queuedObjects={};
 
-    request.basecfc.queuedObjects[id] = entity;
+    var entityID = entity.getID();
 
-    if( !structKeyExists( request.basecfc.instructionsOrder, id )) {
-      request.basecfc.instructionsOrder[id] = {};
+    request.basecfc.queuedObjects[entityID] = entity;
+
+    if( !structKeyExists( request.basecfc.instructionsOrder, entityID )) {
+      request.basecfc.instructionsOrder[entityID] = {};
     }
 
-    if( !structKeyExists( request.basecfc.queuedInstructions, id )) {
-      request.basecfc.queuedInstructions[id] = {};
+    if( !structKeyExists( request.basecfc.queuedInstructions, entityID )) {
+      request.basecfc.queuedInstructions[entityID] = {};
     }
 
-    if( !structKeyExists( request.basecfc.queuedInstructions[id], command )) {
-      request.basecfc.queuedInstructions[id][command] = {};
+    if( !structKeyExists( request.basecfc.queuedInstructions[entityID], command )) {
+      request.basecfc.queuedInstructions[entityID][command] = {};
     }
 
     if( isObject( value )) {
@@ -825,27 +830,27 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       // Adds multiple values:
-      request.basecfc.queuedInstructions[id][command][valueID] = value;
+      request.basecfc.queuedInstructions[entityID][command][valueID] = value;
 
-      if( !structKeyExists( request.basecfc.instructionsOrder[id], command )) {
-        request.basecfc.instructionsOrder[id][command] = [];
+      if( !structKeyExists( request.basecfc.instructionsOrder[entityID], command )) {
+        request.basecfc.instructionsOrder[entityID][command] = [];
       }
 
-      var existingInstructionIndex = arrayFindNoCase( request.basecfc.instructionsOrder[id][command], valueID);
+      var existingInstructionIndex = arrayFindNoCase( request.basecfc.instructionsOrder[entityID][command], valueID);
 
       if( existingInstructionIndex && left( command, 3 ) != "add" ) {
-        arrayDeleteAt( request.basecfc.instructionsOrder[id][command], existingInstructionIndex );
+        arrayDeleteAt( request.basecfc.instructionsOrder[entityID][command], existingInstructionIndex );
       }
 
       if( left( command, 6 ) == "remove" ) {
-        arrayPrepend( request.basecfc.instructionsOrder[id][command], valueID);
+        arrayPrepend( request.basecfc.instructionsOrder[entityID][command], valueID);
       } else {
-        arrayAppend( request.basecfc.instructionsOrder[id][command], valueID);
+        arrayAppend( request.basecfc.instructionsOrder[entityID][command], valueID);
       }
     } else {
       // Adds single value:
-      request.basecfc.queuedInstructions[id][command].value = value;
-      request.basecfc.instructionsOrder[id][command] = ["value"];
+      request.basecfc.queuedInstructions[entityID][command].value = value;
+      request.basecfc.instructionsOrder[entityID][command] = ["value"];
     }
   }
 
@@ -885,10 +890,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /** Takes a GUID or struct containing one and an entity name to construct a
     * component (or passes along the given component)
     */
-  private component function toComponent( required any variable, required string entityName ) {
+  private component function toComponent( required any variable, required struct property ) {
     try {
-      if( isObject( variable ) && variable.getEntityName() == entityName ) {
-        return variable.init();
+      if( isObject( variable ) && isInstanceOf( variable, property.cfc )) {
+        return variable;
       } else {
         if( isSimpleValue( variable ) && isGUID( variable )) {
           variable = { "id" = variable };
@@ -900,29 +905,28 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
         if( isStruct( variable )) {
           var pk = "";
-          if( structKeyExists( variable, "#entityName#id" )) {
-            pk = variable["#entityName#id"];
+          if( structKeyExists( variable, "#property.entityName#id" )) {
+            pk = variable["#property.entityName#id"];
           } else if( structKeyExists( variable, "id" )) {
             pk = variable["id"];
           }
 
           if( isGUID( pk )) {
-            var objectToLink = entityLoadByPK( entityName, pk );
+            var objectToLink = entityLoadByPK( property.entityName, pk );
           }
         }
 
         if( isNull( objectToLink )) {
-          var objectToLink = entityNew( entityName );
+          var objectToLink = entityNew( property.entityName );
           entitySave( objectToLink );
         }
 
         if( isObject( objectToLink )) {
-          // must init object so meta data is set:
-          return objectToLink.init();
+          return objectToLink;
         }
       }
 
-      var logMessage = "Variable could not be translated to component of type #entityName#";
+      var logMessage = "Variable could not be translated to component of type #property.entityName#";
       writeLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.toComponent", message = logMessage );
     } catch( basecfc.toComponent e ) {
@@ -940,7 +944,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         abort;
       }
 
-      var logMessage = "An unexpected error occured while looking for an entity of type #entityName#";
+      var logMessage = "An unexpected error occured while looking for an entity of type #property.entityName#";
       writeLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.toComponent", message = logMessage );
     }
@@ -1004,7 +1008,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if( isStruct( data )) {
-      result = duplicate( data );
+      result = data;
     }
 
     return result;

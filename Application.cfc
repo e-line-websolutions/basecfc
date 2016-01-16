@@ -3,10 +3,12 @@ component {
 
   this.rootDir = getDirectoryFromPath( getCurrentTemplatePath());
 
-  this.mappings["/"] = this.rootDir;
-  this.mappings["/basecfc"] = this.rootDir;
-  this.mappings["/root"] = this.rootDir & "tests";
-  this.mappings["/testbox"] = this.rootDir & "../testbox";
+  this.mappings = {
+    "/" = this.rootDir,
+    "/basecfc" = this.rootDir,
+    "/root" = this.rootDir & "tests",
+    "/testbox" = this.rootDir & "../testbox"
+  };
 
   this.datasources["basecfc"] = getDatasourceConfig();
 
@@ -29,7 +31,7 @@ component {
   }
 
   private any function getDatasourceConfig() {
-     if( structKeyExists( server, "lucee" ) || structKeyExists( server, "railo" )) {
+    if( structKeyExists( server, "lucee" ) || structKeyExists( server, "railo" )) {
       // Lucee
       return {
         class = "org.postgresql.Driver",
