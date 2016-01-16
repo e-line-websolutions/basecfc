@@ -1,7 +1,5 @@
 component extends="testbox.system.BaseSpec" {
   function beforeAll() {
-    ORMReload();
-
     addMatchers({
                toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
             notToBeJSON = function( expectation, args={}) { return !isJSON( expectation.actual ); },
@@ -507,6 +505,31 @@ component extends="testbox.system.BaseSpec" {
           .toHaveLength( 1 );
         expect( deeperLinkBack[1] )
           .toBe( more );
+      });
+    });
+
+    describe( "Test save function with many-to-many relations.", function() {
+      it( "Expects save() to work with many-to-many relations", function(){
+        var sideA = entityNew( "multiple" ).save({name="sideA"}); entitySave( sideA );
+        var sideB = entityNew( "multiple" ).save({name="sideB"}); entitySave( sideB );
+
+        sideA.save({
+          multiplesB = [ sideB ]
+        });
+
+        expect( sideA.getMultiplesB())
+          .toBeTypeOf( "array" )
+          .toHaveLength( 1 );
+
+        expect( sideA.getMultiplesB()[1] )
+          .toBeTypeOf( "component" );
+
+        expect( sideB.getMultiplesA())
+          .toBeTypeOf( "array" )
+          .toHaveLength( 1 );
+
+        expect( sideB.getMultiplesA()[1] )
+          .toBeTypeOf( "component" );
       });
     });
   }
