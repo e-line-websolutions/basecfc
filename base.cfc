@@ -29,14 +29,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   property name="deleted" type="boolean" ORMType="boolean" default=false;
   property name="sortorder" type="integer" ORMType="integer";
 
-  param request.appName="basecfc"; // hash( getBaseTemplatePath())
-
-  variables.sep = server.os.name contains 'Windows' ? '\' : '/';
+  param request.appName="basecfc";
 
   /** The constructor needs to be called in order to populate the instance
     * variables (like instance.meta which is used by the other methods)
     */
-  public any function init() {
+  public component function init() {
     variables.instance = {
       "config" = { "log" = false, "disableSecurity" = true },
       "debug" = false,
@@ -73,7 +71,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * @formData The data structure containing the new data to be saved
     * @depth Used to prevent inv. loops (don't keep going infinitely)
     */
-  public any function save( required struct formData={}, numeric depth=0 ) {
+  public component function save( required struct formData={}, numeric depth=0 ) {
     // Hard coded depth limit
     if( depth > 10 ) {
       if( variables.instance.debug ) {
@@ -244,11 +242,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         switch( property.fieldtype ) {
           case "one-to-many":
           case "many-to-many":
-            //   ___                  _____           __  __
-            //  / _ \  _ _   ___  ___|_   _|___  ___ |  \/  | __ _  _ _  _  _
-            // | (_) || ' \ / -_)|___| | | / _ \|___|| |\/| |/ _` || ' \| || |
-            //  \___/ |_||_|\___|      |_| \___/     |_|  |_|\__,_||_||_|\_, |
-            //                                                           |__/
+          //   ___                  _____           __  __
+          //  / _ \  _ _   ___  ___|_   _|___  ___ |  \/  | __ _  _ _  _  _
+          // | (_) || ' \ / -_)|___| | | / _ \|___|| |\/| |/ _` || ' \| || |
+          //  \___/ |_||_|\___|      |_| \___/     |_|  |_|\__,_||_||_|\_, |
+          //                                                           |__/
 
             // Alias for set_ which overwrites linked data with new data
             if( structKeyExists( formdata, property.name )) {
@@ -371,7 +369,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                   updateStruct[reverseField] = this;
 
-                  if( isNew()) {
+                  if( objectToLink.isNew()) {
                     updateStruct["#property.entityName#id"] = objectToLink.getID();
                   }
 
@@ -384,7 +382,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     depth = ( depth + 1 ),
                     formData = updateStruct
                   );
-
                 }
               }
 
@@ -393,11 +390,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
             break;
           default:
-            //  __  __                       _____            ___
-            // |  \/  | __ _  _ _  _  _  ___|_   _|___  ___  / _ \  _ _   ___
-            // | |\/| |/ _` || ' \| || ||___| | | / _ \|___|| (_) || ' \ / -_)
-            // |_|  |_|\__,_||_||_|\_, |      |_| \___/      \___/ |_||_|\___|
-            //                     |__/
+          //  __  __                       _____            ___
+          // |  \/  | __ _  _ _  _  _  ___|_   _|___  ___  / _ \  _ _   ___
+          // | |\/| |/ _` || ' \| || ||___| | | / _ \|___|| (_) || ' \ / -_)
+          // |_|  |_|\__,_||_||_|\_, |      |_| \___/      \___/ |_||_|\___|
+          //                     |__/
             if( structKeyExists( formdata, property.name )) {
               // save value and link objects together
               var fn = "set" & property.name;
@@ -528,7 +525,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               "created";
 
         var logentry = entityNew( "logentry" )
-              // .init()
               .enterIntoLog( logAction, savedState, this );
 
         entitySave( logentry );
@@ -540,17 +536,92 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return this;
   }
 
-  /** Returns a serialized JSON object (a string) representation of this object
-    * using Adam Tuttle's deORM() - see below
+
+
+
+  // Utility functions:
+
+  /** returns the full cfc path
     */
-  public string function toString() {
-    return serializeJSON( deORM( this ));
+  public string function getClassName() {
+    var sep = server.os.name contains 'Windows' ? '\' : '/';
+    var start = findNoCase( '#sep#model#sep#', variables.instance.meta.path );
+    if( start > 0 ) {
+      return "root" & replace( replace( mid( variables.instance.meta.path, start, len( variables.instance.meta.path )), '.cfc', '', 'one' ), sep, '.', 'all' );
+    }
+
+    return variables.instance.meta.fullname;
   }
 
-  /** returns true if propertyToCheck is found in this object or its ancestors
+  /** returns the entity name (as per CFML ORM standard)
     */
-  public boolean function hasProperty( required string propertyToCheck ) {
-    return structKeyExists( variables.instance.properties, propertyToCheck );
+  public string function getEntityName( string className=getClassName()) {
+    var basicEntityName = listLast( className, '.' );
+
+    if( structKeyExists( variables.instance.entities, basicEntityName )) {
+      return variables.instance.entities[basicEntityName];
+    }
+
+    return basicEntityName;
+  }
+
+  /** This method needs to be moved to a controller, since it has to do with output.
+    */
+  public array function getFieldsToDisplay( string type="inlineedit-line", struct formdata={} ) {
+    var result = [];
+
+    switch( type ) {
+      case "inlineedit-line":
+        var propertiesInInline = structFindKey( variables.instance.properties, "ininline", "all" );
+        var tempProperties = {};
+
+        for( var property in propertiesInInline ) {
+          tempProperties[property.owner.name] = property.owner;
+
+          if( !structKeyExists( tempProperties[property.owner.name], "orderininline" )) {
+            tempProperties[property.owner.name].orderininline = 9001;
+          }
+        }
+
+        var sortKey = structSort( tempProperties, 'numeric', 'asc', 'orderininline' );
+        var currentField = "";
+
+        for( var key in sortKey ) {
+          currentField = tempProperties[key].name;
+
+          if( structKeyExists( formdata, currentField )) {
+            valueToDisplay = formdata[currentField];
+          }
+
+          if( !structKeyExists( local, "valueToDisplay" )) {
+            try{
+              valueToDisplay = evaluate( "get" & currentField );
+            }
+            catch( any cfcatch ) {}
+          }
+
+          if( structKeyExists( local, "valueToDisplay" ) && isObject( valueToDisplay )) {
+            valueToDisplay = valueToDisplay.getName();
+          }
+
+          param valueToDisplay="";
+
+          arrayAppend( result, valueToDisplay );
+          structDelete( local, "valueToDisplay" );
+        }
+        break;
+      case "api":
+
+        break;
+    }
+
+    return result;
+  }
+
+  /** Overrid default getter to generate a GUID to identify this object with.
+    */
+  public string function getID() {
+    return isNew() ? variables.instance.id : variables.id;
   }
 
   /** returns a struct containing this objects and its ancestors properties
@@ -586,29 +657,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     } while( structKeyExists( meta, "extends" ));
 
     return result;
-  }
-
-  /** returns the entity name (as per CFML ORM standard)
-    */
-  public string function getEntityName( string className=getClassName()) {
-    var basicEntityName = listLast( className, '.' );
-
-    if( structKeyExists( variables.instance.entities, basicEntityName )) {
-      return variables.instance.entities[basicEntityName];
-    }
-
-    return basicEntityName;
-  }
-
-  /** returns the full cfc path
-    */
-  public string function getClassName() {
-    var start = findNoCase( '#variables.sep#model#variables.sep#', variables.instance.meta.path );
-    if( start > 0 ) {
-      return "root" & replace( replace( mid( variables.instance.meta.path, start, len( variables.instance.meta.path )), '.cfc', '', 'one' ), variables.sep, '.', 'all' );
-    }
-
-    return variables.instance.meta.fullname;
   }
 
   /** find the corresponding field in the joined object (using the FKColumn)
@@ -675,69 +723,147 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return result;
   }
 
-  /** Overrid default getter to generate a GUID to identify this object with.
+  /** returns true if propertyToCheck is found in this object or its ancestors
     */
-  public string function getID() {
-    return isNew() ? variables.instance.id : variables.id;
+  public boolean function hasProperty( required string propertyToCheck ) {
+    return structKeyExists( variables.instance.properties, propertyToCheck );
   }
 
-  /** This method needs to be moved to a controller, since it has to do with output.
+  /** Determines whether this is a new object (without an ID) or an existing one
     */
-  public array function getFieldsToDisplay( string type="inlineedit-line", struct formdata={} ) {
-    var result = [];
+  public boolean function isNew() {
+    variables.instance.new = ( !structKeyExists( variables, "id" ) || isNull( variables.id ) || !len( trim( variables.id )));
 
-    switch( type ) {
-      case "inlineedit-line":
-        var propertiesInInline = structFindKey( variables.instance.properties, "ininline", "all" );
-        var tempProperties = {};
+    return variables.instance.new;
+  }
 
-        for( var property in propertiesInInline ) {
-          tempProperties[property.owner.name] = property.owner;
+  /** Returns a serialized JSON object (a string) representation of this object
+    * using Adam Tuttle's deORM() - see below
+    */
+  public string function toString() {
+    return serializeJSON( deORM( this ));
+  }
 
-          if( !structKeyExists( tempProperties[property.owner.name], "orderininline" )) {
-            tempProperties[property.owner.name].orderininline = 9001;
-          }
-        }
 
-        var sortKey = structSort( tempProperties, 'numeric', 'asc', 'orderininline' );
-        var currentField = "";
 
-        for( var key in sortKey ) {
-          currentField = tempProperties[key].name;
+  // Private functions:
 
-          if( structKeyExists( formdata, currentField )) {
-            valueToDisplay = formdata[currentField];
-          }
+  /** Compares two component instances wither by ID or by using Java's equals()
+   */
+  private boolean function compareObjects( required component objA, required component objB ) {
+    var idA = objA.getID();
+    var idB = objB.getID();
 
-          if( !structKeyExists( local, "valueToDisplay" )) {
-            try{
-              valueToDisplay = evaluate( "get" & currentField );
+    if( !isNull( idA ) && !isNull( idB )) {
+      return idA == idB;
+    }
+
+    if( !isNull( idA ) || !isNull( idB )) {
+      return false;
+    }
+
+    var comparisonA = { obj = objA };
+    var comparisonB = { obj = objB };
+
+    return comparisonA.equals( comparisonB );
+  }
+
+  /** Returns a simplified representation of the object
+    * By Adam Tuttle ( http://fusiongrokker.com/post/deorm ).
+    * @data One or more entities to be converted to a less complex representation
+    */
+  private any function deORM( required any data ) {
+    var deWormed = {};
+
+    if( isSimpleValue( data )) {
+      deWormed = data;
+    } else if( isObject( data )) {
+      var md = getMetadata( data );
+
+      do {
+        if( structKeyExists( md, 'properties' )) {
+          for( var prop in md.properties) {
+            if( !structKeyExists( data, 'get' & prop.name) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase( "-to-", prop.fieldtype ))) {
+              continue;
             }
-            catch( any cfcatch ) {}
+
+            deWormed[prop.name] = evaluate( "data.get#prop.name#()" );
           }
-
-          if( structKeyExists( local, "valueToDisplay" ) && isObject( valueToDisplay )) {
-            valueToDisplay = valueToDisplay.getName();
-          }
-
-          param valueToDisplay="";
-
-          arrayAppend( result, valueToDisplay );
-          structDelete( local, "valueToDisplay" );
         }
-        break;
-      case "api":
 
-        break;
+        if( structKeyExists( md, 'extends' )) {
+          md = md.extends;
+        }
+
+      } while( structKeyExists( md, 'extends' ));
+    } else if( isStruct( data )) {
+      for (var key in data) {
+        deWormed[ key ] = deORM( data[key] );
+      }
+    } else if( isArray( data )) {
+      var deWormed = [];
+
+      for( var el in data ) {
+        arrayAppend( deWormed, deORM( el ));
+      }
+    } else {
+      deWormed = getMetadata( data );
+    }
+
+    return deWormed;
+  }
+
+  /** Preps string before validating it as GUID */
+  private string function formatAsGUID( required string text ) {
+    var massagedText = reReplace( text, '\W', '', 'all' );
+
+    if( len( massagedText ) < 32 ) {
+      return text; // return original (not my problem)
+    }
+
+    massagedText = insert( '-', massagedText, 20 );
+    massagedText = insert( '-', massagedText, 16 );
+    massagedText = insert( '-', massagedText, 12 );
+    massagedText = insert( '-', massagedText, 8 );
+
+    return massagedText;
+  }
+
+  /** Tests a string to be a valid GUID by using the built-in isValid method and
+    * falling back on reformatting the string and rechecking
+    */
+  private boolean function isGUID( required string text ) {
+    if( len( text ) < 32 ) {
+      return false;
+    }
+
+    var validGUID = isValid( "guid", text );
+
+    if( validGUID ) {
+      return true;
+    }
+
+    return isValid( "guid", formatAsGUID( text ));
+  }
+
+  /** Parses a JSON string into a struct (or passes through the given struct)
+   */
+  private struct function parseUpdateStruct( required any data ) {
+    var result = {};
+
+    if( isSimpleValue( data ) && len( trim( data )) && isJSON( data )) {
+      var tempValue = deserializeJSON( data );
+      if( isStruct( tempValue )) {
+        data = tempValue;
+      }
+    }
+
+    if( isStruct( data ) && !isObject( data )) {
+      result = data;
     }
 
     return result;
   }
-
-  //  ___       _             _          __  __       _    _             _
-  // | _ \ _ _ (_)__ __ __ _ | |_  ___  |  \/  | ___ | |_ | |_   ___  __| | ___
-  // |  _/| '_|| |\ V // _` ||  _|/ -_) | |\/| |/ -_)|  _|| ' \ / _ \/ _` |(_-<
-  // |_|  |_|  |_| \_/ \__,_| \__|\___| |_|  |_|\___| \__||_||_|\___/\__,_|/__/
 
   /** Processes the queued instructions in one batch
     */
@@ -854,39 +980,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
-  /** Tests a string to be a valid GUID by using the built-in isValid method and
-    * falling back on reformatting the string and rechecking
-    */
-  private boolean function isGUID( required string text ) {
-    if( len( text ) < 32 ) {
-      return false;
-    }
-
-    var validGUID = isValid( "guid", text );
-
-    if( validGUID ) {
-      return true;
-    }
-
-    return isValid( "guid", formatAsGUID( text ));
-  }
-
-  /** Preps string before validating it as GUID */
-  private string function formatAsGUID( required string text ) {
-    var massagedText = reReplace( text, '\W', '', 'all' );
-
-    if( len( massagedText ) < 32 ) {
-      return text; // return original (not my problem)
-    }
-
-    massagedText = insert( '-', massagedText, 20 );
-    massagedText = insert( '-', massagedText, 16 );
-    massagedText = insert( '-', massagedText, 12 );
-    massagedText = insert( '-', massagedText, 8 );
-
-    return massagedText;
-  }
-
   /** Takes a GUID or struct containing one and an entity name to construct a
     * component (or passes along the given component)
     */
@@ -948,97 +1041,5 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       writeLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.toComponent", message = logMessage );
     }
-  }
-
-  /** Returns a simplified representation of the object
-    * By Adam Tuttle ( http://fusiongrokker.com/post/deorm ).
-    * @data One or more entities to be converted to a less complex representation
-    */
-  private any function deORM( required any data ) {
-    var deWormed = {};
-
-    if( isSimpleValue( data )) {
-      deWormed = data;
-    } else if( isObject( data )) {
-      var md = getMetadata( data );
-
-      do {
-        if( structKeyExists( md, 'properties' )) {
-          for( var prop in md.properties) {
-            if( !structKeyExists( data, 'get' & prop.name) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase( "-to-", prop.fieldtype ))) {
-              continue;
-            }
-
-            deWormed[prop.name] = evaluate( "data.get#prop.name#()" );
-          }
-        }
-
-        if( structKeyExists( md, 'extends' )) {
-          md = md.extends;
-        }
-
-      } while( structKeyExists( md, 'extends' ));
-    } else if( isStruct( data )) {
-      for (var key in data) {
-        deWormed[ key ] = deORM( data[key] );
-      }
-    } else if( isArray( data )) {
-      var deWormed = [];
-
-      for( var el in data ) {
-        arrayAppend( deWormed, deORM( el ));
-      }
-    } else {
-      deWormed = getMetadata( data );
-    }
-
-    return deWormed;
-  }
-
-  /** Parses a JSON string into a struct (or passes through the given struct)
-   */
-  private struct function parseUpdateStruct( required any data ) {
-    var result = {};
-
-    if( isSimpleValue( data ) && len( trim( data )) && isJSON( data )) {
-      var tempValue = deserializeJSON( data );
-      if( isStruct( tempValue )) {
-        data = tempValue;
-      }
-    }
-
-    if( isStruct( data )) {
-      result = data;
-    }
-
-    return result;
-  }
-
-  /** Compares two component instances wither by ID or by using Java's equals()
-   */
-  private boolean function compareObjects( required component objA, required component objB ) {
-    var idA = objA.getID();
-    var idB = objB.getID();
-
-    if( !isNull( idA ) && !isNull( idB )) {
-      return idA == idB;
-    }
-
-    if( !isNull( idA ) || !isNull( idB )) {
-      return false;
-    }
-
-    var comparisonA = { obj = objA };
-    var comparisonB = { obj = objB };
-
-    return comparisonA.equals( comparisonB );
-  }
-
-  /** Determines whether this is a new object (without an ID) or an existing one
-    */
-  private boolean function isNew() {
-    variables.instance.new = ( !structKeyExists( variables, "id" ) || isNull( variables.id ) || !len( trim( variables.id )));
-
-    return variables.instance.new;
   }
 }
