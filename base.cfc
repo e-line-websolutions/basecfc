@@ -27,7 +27,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   property name="id" type="string" fieldType="id" generator="uuid";
   property name="name" type="string" length=128;
   property name="deleted" type="boolean" ORMType="boolean" default=false;
-  property name="sortorder" type="integer" ORMType="integer";
+  property name="sortorder" type="numeric" ORMType="integer" default=0;
 
   param request.appName="basecfc";
 
@@ -99,6 +99,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var logFields = "createContact,createDate,createIP,updateContact,updateDate,updateIP";
     var savedState = {};
 
+    for( var logField in listToArray( logFields )) {
+      structDelete( formData, logField );
+    }
+
     if( isNull( getDeleted())) {
       formData.deleted=false;
     }
@@ -107,37 +111,35 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       request.basecfc.instructionsOrder = {};
       request.basecfc.queuedInstructions = {};
       request.basecfc.queuedObjects = { "#variables.instance.id#" = this };
-    }
 
-    for( var logField in listToArray( logFields )) {
-      structDelete( formData, logField );
-    }
-
-    if( canBeLogged && ( depth == 0 || entityName == "logentry" )) {
-      if( !len( trim( getCreateDate()))) {
-        formData.createDate = now();
-      }
-
-      if( !len( trim( getCreateIP()))) {
-        formData.createIP = cgi.remote_host;
-      }
-
-      formData.updateDate = now();
-      formData.updateIP = cgi.remote_host;
-
-      if( !variables.instance.config.disableSecurity ) {
-        if( !hasCreateContact()) {
-          if( !structKeyExists( formData, "createContact" ) &&
-              structKeyExists( variables.instance, "auth" ) &&
-              structKeyExists( variables.instance.auth, "userID" )) {
-            formData.createContact = variables.instance.auth.userID;
-          }
+      if( canBeLogged ) {
+        if( !len( trim( getCreateDate()))) {
+          formData.createDate = now();
         }
 
-        if( !structKeyExists( formData, "updateContact" ) &&
-            structKeyExists( variables.instance, "auth" ) &&
-            structKeyExists( variables.instance.auth, "userID" )) {
-          formData.updateContact = variables.instance.auth.userID;
+        if( !len( trim( getCreateIP()))) {
+          formData.createIP = cgi.remote_host;
+        }
+
+        formData.updateDate = now();
+        formData.updateIP = cgi.remote_host;
+
+        if( !variables.instance.config.disableSecurity ) {
+          if( !hasCreateContact()) {
+            if( !structKeyExists( formData, "createContact" ) &&
+                structKeyExists( variables.instance, "auth" ) &&
+                structKeyExists( variables.instance.auth, "userID" ) &&
+                isGUID( variables.instance.auth.userID )) {
+              formData.createContact = variables.instance.auth.userID;
+            }
+          }
+
+          if( !structKeyExists( formData, "updateContact" ) &&
+              structKeyExists( variables.instance, "auth" ) &&
+              structKeyExists( variables.instance.auth, "userID" ) &&
+                isGUID( variables.instance.auth.userID )) {
+            formData.updateContact = variables.instance.auth.userID;
+          }
         }
       }
     }
@@ -247,6 +249,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           // | (_) || ' \ / -_)|___| | | / _ \|___|| |\/| |/ _` || ' \| || |
           //  \___/ |_||_|\___|      |_| \___/     |_|  |_|\__,_||_||_|\_, |
           //                                                           |__/
+            valueToLog = [];
 
             // Alias for set_ which overwrites linked data with new data
             if( structKeyExists( formdata, property.name )) {
@@ -261,6 +264,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               if( structKeyExists( formdata, "remove_#property.name#" )) {
                 query &= " AND b.id IN ( :list )";
                 params["list"] = listToArray( formdata["remove_#property.name#"] );
+                arrayAppend( valueToLog, "removed #property.name#" );
               }
 
               try {
@@ -311,12 +315,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
 
                   arrayAppend( entitiesToAdd, toAdd );
+                  structDelete( local, "toAdd" );
                 }
 
                 formdata["add_#property.singularName#"] = entitiesToAdd;
+                structDelete( local, "entitiesToAdd" );
               }
 
               structDelete( formdata, "set_#property.name#" );
+              structDelete( local, "workData" );
             }
 
             // ADD
@@ -348,6 +355,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   if( structKeyExists( request.basecfc.queuedInstructions, getID()) &&
                       structKeyExists( request.basecfc.queuedInstructions[getID()], "add#property.singularName#" ) &&
                       structKeyExists( request.basecfc.queuedInstructions[getID()]["add#property.singularName#"], objectToLink.getID())) {
+                    structDelete( local, "objectToLink" );
+                    structDelete( local, "updateStruct" );
+                    structDelete( local, "nestedData" );
                     continue; // already queued
                   }
 
@@ -358,6 +368,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                   if( evaluate( "has#property.singularName#(objectToLink)" ) &&
                       evaluate( "objectToLink.has#reverseField#(this)" )) {
+                    structDelete( local, "objectToLink" );
+                    structDelete( local, "updateStruct" );
+                    structDelete( local, "nestedData" );
                     continue; // alread in object
                   }
 
@@ -377,15 +390,26 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     writeLog( text = "called: #property.entityName#.save(#depth+1#)", file = request.appName );
                   }
 
+
                   // Go down the rabbit hole:
                   var value = objectToLink.save(
                     depth = ( depth + 1 ),
                     formData = updateStruct
                   );
+
+                  arrayAppend( valueToLog, value );
+
+                  structDelete( local, "objectToLink" );
+                  structDelete( local, "updateStruct" );
+                  structDelete( local, "nestedData" );
                 }
+
+                structDelete( local, "objectToLink" );
+                structDelete( local, "nestedData" );
               }
 
               structDelete( formdata, "add_#property.singularName#" );
+              structDelete( local, "workData" );
             }
 
             break;
@@ -409,6 +433,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 if( !isNull( objectToLink )) {
                   if( structKeyExists( request.basecfc.queuedInstructions, getID()) &&
                       structKeyExists( request.basecfc.queuedInstructions[getID()], fn )) {
+                    structDelete( local, "objectToLink" );
+                    structDelete( local, "updateStruct" );
                     continue; // already queued
                   }
 
@@ -417,6 +443,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
 
                   if( evaluate( "objectToLink.has#reverseField#(this)" )) {
+                    structDelete( local, "objectToLink" );
+                    structDelete( local, "updateStruct" );
                     continue; // already in object
                   }
 
@@ -436,6 +464,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   );
 
                   valueToLog = value.getName();
+                  structDelete( local, "objectToLink" );
+                  structDelete( local, "updateStruct" );
                 } else {
                   valueToLog = "removed";
                 }
@@ -452,9 +482,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 // make sure integers are saved as that:
                 if( structKeyExists( property, "ORMType" )) {
                   if( property.ORMType == "int" || property.ORMType == "integer" ) {
-                    value = int( val( value ));
+                    value = javaCast( "int", val( value ));
                   } else if( property.ORMType == "float" ) {
-                    value = val( value );
+                    value = javaCast( "float", val( value ));
                   }
                 }
 
@@ -520,14 +550,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // Process queued instructions
     if( depth == 0 ) {
       if( canBeLogged && entityName != "logentry" ) {
-        var logAction = ( structKeyExists( formData, "#getEntityName()#id" ) && formData["#getEntityName()#id"] == getID()) ?
-              "changed" :
-              "created";
-
-        var logentry = entityNew( "logentry" )
-              .enterIntoLog( logAction, savedState, this );
-
+        var logAction = isNew() ? "created" : "changed";
+        var logentry = entityNew( "logentry" );
         entitySave( logentry );
+        logentry.enterIntoLog( logAction, savedState, this );
       }
 
       processQueue();
@@ -628,18 +654,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     */
   public struct function getInheritedProperties() {
     var meta = variables.instance.meta;
-
-    if( !structKeyExists( meta, "extends" )) {
-      // meta = { "extends" = meta };
-    }
-
     var result = {};
 
-    // writeOutput( meta.fullname & "<br />" );
-
     do {
-      if( structKeyExists( meta, "properties" )) {
-        for( var property in meta.properties ) {
+      // for..in loop on meta.properties doesn't work in cf9.0.1 see bug 3291001
+      if( structKeyExists( meta, "properties" ) && isArray( meta.properties )) {
+        for( var i=1; i<=arrayLen( meta.properties ); i++ ) {
+          var property = meta.properties[i];
+
           if( structKeyExists( property, "cfc" )) {
             // writeOutput( " - " & property.name & " (" & property.cfc & ") = " & getEntityName( property.cfc ) & "<br />" );
             result[property.name]["entityName"] = getEntityName( property.cfc );
@@ -744,35 +766,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return serializeJSON( deORM( this ));
   }
 
-
-
-  // Private functions:
-
-  /** Compares two component instances wither by ID or by using Java's equals()
-   */
-  private boolean function compareObjects( required component objA, required component objB ) {
-    var idA = objA.getID();
-    var idB = objB.getID();
-
-    if( !isNull( idA ) && !isNull( idB )) {
-      return idA == idB;
-    }
-
-    if( !isNull( idA ) || !isNull( idB )) {
-      return false;
-    }
-
-    var comparisonA = { obj = objA };
-    var comparisonB = { obj = objB };
-
-    return comparisonA.equals( comparisonB );
-  }
-
   /** Returns a simplified representation of the object
     * By Adam Tuttle ( http://fusiongrokker.com/post/deorm ).
     * @data One or more entities to be converted to a less complex representation
     */
-  private any function deORM( required any data ) {
+  public any function deORM( required any data ) {
     var deWormed = {};
 
     if( isSimpleValue( data )) {
@@ -782,7 +780,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       do {
         if( structKeyExists( md, 'properties' )) {
-          for( var prop in md.properties) {
+          for( var i=1; i<=arrayLen( md.properties ); i++ ) {
+            var prop = md.properties[i];
             if( !structKeyExists( data, 'get' & prop.name) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase( "-to-", prop.fieldtype ))) {
               continue;
             }
@@ -811,6 +810,30 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     return deWormed;
+  }
+
+
+
+  // Private functions:
+
+  /** Compares two component instances wither by ID or by using Java's equals()
+   */
+  private boolean function compareObjects( required component objA, required component objB ) {
+    var idA = objA.getID();
+    var idB = objB.getID();
+
+    if( !isNull( idA ) && !isNull( idB )) {
+      return idA == idB;
+    }
+
+    if( !isNull( idA ) || !isNull( idB )) {
+      return false;
+    }
+
+    var comparisonA = { obj = objA };
+    var comparisonB = { obj = objB };
+
+    return comparisonA.equals( comparisonB );
   }
 
   /** Preps string before validating it as GUID */
@@ -900,6 +923,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
           try {
             evaluate( finalInstruction );
+
             if( variables.instance.debug ) {
               writeLog( text = logMessage, file = request.appName );
             }
@@ -1010,6 +1034,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
 
         if( isNull( objectToLink )) {
+          writeLog( text = "Creating new #property.entityName#.", file = request.appName );
           var objectToLink = entityNew( property.entityName );
           entitySave( objectToLink );
         }
