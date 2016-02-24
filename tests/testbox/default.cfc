@@ -510,12 +510,17 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "Test save function with many-to-many relations.", function() {
       it( "Expects save() to work with many-to-many relations", function(){
-        var sideA = entityNew( "multiple" ).save({name="sideA"}); entitySave( sideA );
-        var sideB = entityNew( "multiple" ).save({name="sideB"}); entitySave( sideB );
+        transaction {
+          var sideA = entityNew( "multiple" ).save({name="sideA"}); entitySave( sideA );
+          var sideB = entityNew( "multiple" ).save({name="sideB"}); entitySave( sideB );
 
-        sideA.save({
-          multiplesB = [ sideB ]
-        });
+          sideA.save({
+            multiplesB = [ sideB ]
+          });
+        }
+
+        entityReload( sideA );
+        entityReload( sideB );
 
         expect( sideA.getMultiplesB())
           .toBeTypeOf( "array" )
