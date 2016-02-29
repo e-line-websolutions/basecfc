@@ -25,9 +25,9 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
-  property name="name" type="string" length=128;
-  property name="deleted" type="boolean" ORMType="boolean" default=false inapi=false;
-  property name="sortorder" type="numeric" ORMType="integer" default=0;
+  // property name="name" type="string" length=128;                                      // <-- not allowed by Adobe
+  // property name="deleted" type="boolean" ORMType="boolean" default=false inapi=false; // <-- not allowed by Adobe
+  // property name="sortorder" type="numeric" ORMType="integer" default=0;               // <-- not allowed by Adobe
 
   property persistent=false name="version" default="3.0" type="string" inapi=false;
 
@@ -47,6 +47,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     };
 
     variables.instance.properties = getInheritedProperties();
+
+    if( !structKeyExists( variables.instance.properties, "name" ) ||
+        !structKeyExists( variables.instance.properties, "deleted" ) ||
+        !structKeyExists( variables.instance.properties, "sortorder" )) {
+      throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
+    }
 
     try{
       variables.allEntities = ORMGetSessionFactory().getAllClassMetadata();
@@ -705,7 +711,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if( !arrayLen( propertiesWithCFC )) {
       var logMessage = "getReverseField() ERROR: nothing linked to #cfc#.";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
-      throw( type = "basecfc.getReverseField", message = logMessage );
+
+      try {
+        var expectedPropertyName = listLast( arguments.cfc, '.' );
+        var expectedCode = 'property name="#expectedPropertyName#s" singularName="#expectedPropertyName#" fieldType="one-to-many" cfc="#arguments.cfc#" fkColumn="#arguments.fkcolumn#";';
+        var errorDetail = "Expected something like: #expectedCode#";
+
+        if( len( arguments.fkcolumn ) > 2 ) {
+          errorDetail &= chr( 10 ) & "In template: #left( arguments.fkcolumn, len( arguments.fkcolumn ) - 2 )#.cfc";
+        }
+      } catch ( any e ) {
+        var errorDetail = "";
+      }
+
+      throw( type="basecfc.getReverseField", message=logMessage, detail=errorDetail );
     }
 
     for( var property in propertiesWithCFC ) {
@@ -1103,7 +1122,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       rethrow;
     } catch( any e ) {
-      var logMessage = "An unexpected error occured while looking for an entity of type #property.entityName#";
+      var logMessage = "While creating object #property.entityName#, an unexpected error occured: #e.detail#";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
 
       if( variables.instance.debug ) {
