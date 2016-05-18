@@ -29,7 +29,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   // property name="deleted" type="boolean" ORMType="boolean" default=false inapi=false; // <-- not allowed by Adobe
   // property name="sortorder" type="numeric" ORMType="integer" default=0;               // <-- not allowed by Adobe
 
-  property persistent=false name="version" default="3.0" type="string" inapi=false;
+  property persistent=false inapi=false name="version" default="3.1" type="string";
 
   param request.appName="basecfc";
 
@@ -78,7 +78,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * @formData The data structure containing the new data to be saved
     * @depth Used to prevent inv. loops (don't keep going infinitely)
     */
-  public component function save( required struct formData={}, numeric depth=0 ) {
+  public component function save( required struct formData={}, numeric depth=0, any validationService ) {
     // objects using .save() must be initialised using the constructor
     if( not structKeyExists( variables, "instance" )) {
       var logMessage = "Basecfc not initialised";
@@ -153,6 +153,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             formData.updateContact = variables.instance.auth.userID;
           }
         }
+      }
+
+      if( structKeyExists( arguments, "validationService" )) {
+        variables.instance.validationService = validationService;
       }
     }
 
@@ -258,6 +262,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
 
         switch( property.fieldtype ) {
+          case "one-to-one":
+          //   ___                  _____            ___
+          //  / _ \  _ _   ___  ___|_   _|___  ___  / _ \  _ _   ___
+          // | (_) || ' \ / -_)|___| | | / _ \|___|| (_) || ' \ / -_)
+          //  \___/ |_||_|\___|      |_| \___/      \___/ |_||_|\___|
+          //
+            throw( message="Not implemented", detail="One-to-one relations are not yet supported.", type="basecfc.save" );
+
           case "one-to-many":
           case "many-to-many":
           //   ___                  _____           __  __
@@ -428,6 +440,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             }
 
             break;
+
           default:
           //  __  __                       _____            ___
           // |  \/  | __ _  _ _  _  _  ___|_   _|___  ___  / _ \  _ _   ___
@@ -713,12 +726,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
 
       try {
-        var expectedPropertyName = listLast( arguments.cfc, '.' );
-        var expectedCode = 'property name="#expectedPropertyName#s" singularName="#expectedPropertyName#" fieldType="one-to-many" cfc="#arguments.cfc#" fkColumn="#arguments.fkcolumn#";';
+        var expectedPropertyName = listLast( cfc, '.' );
+        var expectedCode = 'property name="#expectedPropertyName#s" singularName="#expectedPropertyName#" fieldType="one-to-many" cfc="#cfc#" fkColumn="#fkcolumn#";';
         var errorDetail = "Expected something like: #expectedCode#";
 
-        if( len( arguments.fkcolumn ) > 2 ) {
-          errorDetail &= chr( 10 ) & "In template: #left( arguments.fkcolumn, len( arguments.fkcolumn ) - 2 )#.cfc";
+        if( len( fkcolumn ) > 2 ) {
+          errorDetail &= chr( 10 ) & "In template: #left( fkcolumn, len( fkcolumn ) - 2 )#.cfc";
         }
       } catch ( any e ) {
         var errorDetail = "";
@@ -950,6 +963,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( text = "~~ start processing queue for #variables.instance.meta.name# ~~", file = request.appName );
     }
 
+    var useValidation = false;
+
+    if( structKeyExists( variables.instance, "validationService" )) {
+      var validationService = variables.instance.validationService;
+      var validationEngine = validationService.getValidationEngine();
+      useValidation = true;
+    }
+
     var queuedInstructions = request.basecfc.queuedInstructions;
 
     // per object
@@ -983,16 +1004,43 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           } catch( any e ) {
             logMessage &= " FAILED";
             basecfcLog( text = logMessage, file = request.appName, type = "fatal" );
-            if( variables.instance.debug ) {
+            // if( variables.instance.debug ) {
               rethrow;
-            }
+            // }
           }
 
           var instructionTimer = ( getTickCount() - instructionTimer );
 
-          basecfcLog( "t=#instructionTimer#" );
+          if( variables.instance.debug ) {
+            basecfcLog( "t=#instructionTimer#" );
+          }
 
           instructionsTimer += instructionTimer;
+        }
+      }
+
+      if( useValidation ) {
+        var validated = validationEngine.validate( object );
+
+        if( validated.hasErrors()) {
+          var validationReport = [];
+
+          for( var err in validated.getErrors()) {
+            arrayAppend( validationReport, err );
+            var prop = err.getProperty();
+            var obj = err.getClass();
+            var errorMessage = "Invalid value";
+            var problemValue = object.safeGet( prop );
+            if( len( trim( problemValue ))) {
+              errorMessage &= " (#problemValue#)";
+            }
+            errorMessage &= " for #prop# in #obj#: #err.getMessage()#";
+            basecfcLog( text = errorMessage, file = request.appName );
+          }
+
+          validationService.setValidationReport( validationReport );
+
+          // throw( "basecfc.processQueue", "Validation error", "#object.getEntityName()# contains #arrayLen( validated.getErrors())# error(s). See log for details." );
         }
       }
     }
