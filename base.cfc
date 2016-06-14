@@ -25,11 +25,7 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
-  // property name="name" type="string" length=128;                                      // <-- not allowed by Adobe
-  // property name="deleted" type="boolean" ORMType="boolean" default=false inapi=false; // <-- not allowed by Adobe
-  // property name="sortorder" type="numeric" ORMType="integer" default=0;               // <-- not allowed by Adobe
-
-  property persistent=false inapi=false name="version" default="3.1" type="string";
+  property persistent=false inapi=false name="version" default="3.1.1" type="string";
 
   param request.appName="basecfc";
 
@@ -48,11 +44,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     variables.instance.properties = getInheritedProperties();
 
-    if( !structKeyExists( variables.instance.properties, "name" ) ||
+    if((
+        !structKeyExists( variables.instance.properties, "name" ) ||
         !structKeyExists( variables.instance.properties, "deleted" ) ||
-        !structKeyExists( variables.instance.properties, "sortorder" )) {
+        !structKeyExists( variables.instance.properties, "sortorder" )
+      ) && getClassName() != "basecfc.base" ) {
       throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
     }
+
+    param variables.name="";
+    param variables.deleted=false;
+    param variables.sortorder=0;
 
     try{
       variables.allEntities = ORMGetSessionFactory().getAllClassMetadata();
@@ -78,7 +80,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * @formData The data structure containing the new data to be saved
     * @depth Used to prevent inv. loops (don't keep going infinitely)
     */
-  public component function save( required struct formData={}, numeric depth=0, any validationService ) {
+  public component function save( required struct formData={}, numeric depth=0, component validationService, component sanitationService ) {
+    if( depth == 0 ) {
+      request.basecfc = {};
+    }
+
     // objects using .save() must be initialised using the constructor
     if( not structKeyExists( variables, "instance" )) {
       var logMessage = "Basecfc not initialised";
@@ -115,7 +121,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       structDelete( formData, logField );
     }
 
-    if( isNull( getDeleted())) {
+    if( isNull( variables.deleted )) {
       formData.deleted=false;
     }
 
@@ -156,8 +162,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if( structKeyExists( arguments, "validationService" )) {
-        variables.instance.validationService = validationService;
+        request.basecfc.validationService = validationService;
       }
+
+      if( structKeyExists( arguments, "sanitationService" )) {
+        request.basecfc.sanitationService = sanitationService;
+      }
+    }
+
+    var useSanitation = structKeyExists( request.basecfc, "sanitationService" );
+
+    if( useSanitation ) {
+      var sanitationInstance = request.basecfc.sanitationService;
     }
 
     if( variables.instance.debug ) {
@@ -193,7 +209,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           <h2 onclick="#collapse#">#depth#:#entityName#:#getID()#</h2>
           <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
             <tr>
-              <th colspan="2">Name: "#getName()#"</th>
+              <th colspan="2">Name: "#variables.name#"</th>
             </tr>
       ' );
     }
@@ -212,7 +228,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var property = inheritedProperties[key];
       var valueToLog = "";
 
-      if( structKeyExists( property, "removeFromFormdata" ) && property.removeFromFormdata ) {
+      if( structKeyExists( property, "removeFromformData" ) && property.removeFromformData ) {
         continue;
       }
 
@@ -223,7 +239,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           listFindNoCase( defaultFields, key ) || (
 
             // not in form
-            !structKeyExists( formdata, property.name ) &&
+            !structKeyExists( formData, property.name ) &&
 
             // not added:
             !(
@@ -244,9 +260,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               )
             )
           ) || (
-            structKeyExists( formdata, property.name ) &&
-            isSimpleValue( formdata[property.name] ) &&
-            !len( trim( formdata[property.name] ))
+            structKeyExists( formData, property.name ) &&
+            isSimpleValue( formData[property.name] ) &&
+            !len( trim( formData[property.name] ))
           )
         ) {
         continue;
@@ -280,18 +296,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             valueToLog = [];
 
             // Alias for set_ which overwrites linked data with new data
-            if( structKeyExists( formdata, property.name )) {
-              formdata["set_#property.name#"] = formdata[property.name];
+            if( structKeyExists( formData, property.name )) {
+              formData["set_#property.name#"] = formData[property.name];
             }
 
             // REMOVE
-            if( structKeyExists( formdata, "set_#property.name#" ) || structKeyExists( formdata, "remove_#property.name#" )) {
+            if( structKeyExists( formData, "set_#property.name#" ) || structKeyExists( formData, "remove_#property.name#" )) {
               var query = "SELECT b FROM #entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
               var params = { "id" = getID()};
 
-              if( structKeyExists( formdata, "remove_#property.name#" )) {
+              if( structKeyExists( formData, "remove_#property.name#" )) {
                 query &= " AND b.id IN ( :list )";
-                params["list"] = listToArray( formdata["remove_#property.name#"] );
+                params["list"] = listToArray( formData["remove_#property.name#"] );
                 arrayAppend( valueToLog, "removed #property.name#" );
               }
 
@@ -317,8 +333,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             }
 
             // SET
-            if( structKeyExists( formdata, "set_#property.name#" )) {
-              var workData = formdata["set_#property.name#"];
+            if( structKeyExists( formData, "set_#property.name#" )) {
+              var workData = formData["set_#property.name#"];
 
               if( isSimpleValue( workData )) {
                 if( isJSON( workData )) {
@@ -346,17 +362,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   structDelete( local, "toAdd" );
                 }
 
-                formdata["add_#propertyName( property )#"] = entitiesToAdd;
+                formData["add_#propertyName( property )#"] = entitiesToAdd;
                 structDelete( local, "entitiesToAdd" );
               }
 
-              structDelete( formdata, "set_#property.name#" );
+              structDelete( formData, "set_#property.name#" );
               structDelete( local, "workData" );
             }
 
             // ADD
-            if( structKeyExists( formdata, "add_#propertyName( property )#" )) {
-              var workData = formdata["add_#propertyName( property )#"];
+            if( structKeyExists( formData, "add_#propertyName( property )#" )) {
+              var workData = formData["add_#propertyName( property )#"];
 
               if( isSimpleValue( workData )) {
                 if( isJSON( workData )) {
@@ -424,7 +440,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                   // Go down the rabbit hole:
                   var nestedData = objectToLink.save(
-                    depth = ( depth + 1 ),
+                    depth = depth+1,
                     formData = updateStruct
                   );
 
@@ -435,7 +451,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 }
               }
 
-              structDelete( formdata, "add_#propertyName( property )#" );
+              structDelete( formData, "add_#propertyName( property )#" );
               structDelete( local, "workData" );
             }
 
@@ -447,10 +463,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           // | |\/| |/ _` || ' \| || ||___| | | / _ \|___|| (_) || ' \ / -_)
           // |_|  |_|\__,_||_||_|\_, |      |_| \___/      \___/ |_||_|\___|
           //                     |__/
-            if( structKeyExists( formdata, property.name )) {
+            if( structKeyExists( formData, property.name )) {
               // save value and link objects together
               var fn = "set" & property.name;
-              var nestedData = formdata[property.name];
+              var nestedData = formData[property.name];
 
               if( structKeyExists( property, "cfc" )) {
                 var objectToLink = toComponent( nestedData, property );
@@ -491,7 +507,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                   // Go down the rabbit hole:
                   nestedData = objectToLink.save(
-                    depth = ( depth + 1 ),
+                    depth = depth+1,
                     formData = updateStruct
                   );
 
@@ -508,7 +524,40 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   if( isStruct( testForJSON ) && structKeyExists( testForJSON, "id" )) {
                     nestedData = testForJSON.id;
                   }
-                } catch( any e ) {
+                } catch ( any e ) {}
+
+                var skipThisField = false;
+
+                if( useSanitation ) {
+                  var dirtyValue = duplicate( nestedData );
+                  var dataType = getDatatype( property );
+
+                  nestedData = sanitationInstance.sanitize( nestedData, dataType );
+
+                  var sanitationFailed = sanitationInstance.hasErrors();
+
+                  if( sanitationFailed ) {
+                    var sanitationReport = sanitationInstance.getReport();
+                    var sanitationError = sanitationInstance.getError();
+
+                    arrayAppend( sanitationReport, {
+                      "type" = "sanitation",
+                      "object" = getClassName(),
+                      "field" = property.name,
+                      "value" = nestedData,
+                      "datatype" = dataType,
+                      "message" = sanitationError.message,
+                      "detail" = sanitationError.detail
+                    });
+
+                    sanitationInstance.setReport( sanitationReport );
+
+                    basecfcLog( text = "sanitation of '#dirtyValue#' to '#dataType#' FAILED", file = request.appName );
+
+                    skipThisField = true; // break off trying to set this value, as it won't work anyway.
+                  } else if( variables.instance.debug ) {
+                    basecfcLog( text = "value '#dirtyValue#' sanitized to '#nestedData#'", file = request.appName );
+                  }
                 }
 
                 // make sure integers are saved as that:
@@ -520,26 +569,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
                 }
 
-                queueInstruction( this, fn, nestedData );
+                if( !skipThisField ) {
+                  queueInstruction( this, fn, nestedData );
+                }
 
                 valueToLog = left( nestedData, 255 );
               }
 
-              if( !isNull( nestedData )) {
-                if( variables.instance.debug ) {
-                  var dbugAttr = nestedData.toString();
-
-                  if( structKeyExists( local, "updateStruct" )) {
-                    dbugAttr = serializeJSON( updateStruct );
-                  }
-
-                  if( isJSON( dbugAttr ) && !isBoolean( dbugAttr ) && !isNumeric( dbugAttr )) {
-                    dbugAttr = '<code class="prettyprint">#replace( dbugAttr, ',', ',<br />', 'all' )#</code>';
-                  }
-
-                  writeOutput( '<p>#fn#( #dbugAttr# )</p>' );
-                }
-              } else {
+              // remove data if nestedData is empty
+              if( isNull( nestedData )) {
                 queueInstruction( this, fn, "null" );
 
                 if( variables.instance.debug ) {
@@ -547,6 +585,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 }
               }
 
+              // debug output to show which function call was queued:
+              if( variables.instance.debug && !isNull( nestedData )) {
+                var dbugAttr = nestedData.toString();
+
+                if( structKeyExists( local, "updateStruct" )) {
+                  dbugAttr = serializeJSON( updateStruct );
+                }
+
+                if( isJSON( dbugAttr ) && !isBoolean( dbugAttr ) && !isNumeric( dbugAttr )) {
+                  dbugAttr = '<code class="prettyprint">#replace( dbugAttr, ',', ',<br />', 'all' )#</code>';
+                }
+
+                writeOutput( '<p>#fn#( #dbugAttr# )</p>' );
+              }
+
+              // cleanup for the next loop:
               structDelete( local, "objectToLink" );
               structDelete( local, "updateStruct" );
               structDelete( local, "nestedData" );
@@ -581,14 +635,26 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // Process queued instructions
     if( depth == 0 ) {
-      processQueue();
+      if( structKeyExists( request.basecfc, "validationService" )) {
+        processQueue( request.basecfc.validationService );
+      } else {
+        processQueue();
+      }
 
       if( canBeLogged && entityName != "logentry" ) {
         var logAction = isNew() ? "created" : "changed";
         var logentry = entityNew( "logentry" );
-        basecfcLog( text = "Creating new log entry.", file = request.appName );
         entitySave( logentry );
-        logentry.enterIntoLog( logAction, savedState, this );
+        basecfcLog( text = "Creating new log entry.", file = request.appName );
+        transaction {
+          try {
+            logentry.enterIntoLog( logAction, savedState, this );
+            transactionCommit();
+          } catch ( any e ) {
+            transactionRollback();
+            rethrow;
+          }
+        }
       }
     }
 
@@ -626,7 +692,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   /** This method needs to be moved to a controller, since it has to do with output.
     */
-  public array function getFieldsToDisplay( string type="inlineedit-line", struct formdata={} ) {
+  public array function getFieldsToDisplay( string type="inlineedit-line", struct formData={} ) {
     var result = [];
 
     switch( type ) {
@@ -648,8 +714,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         for( var key in sortKey ) {
           currentField = tempProperties[key].name;
 
-          if( structKeyExists( formdata, currentField )) {
-            valueToDisplay = formdata[currentField];
+          if( structKeyExists( formData, currentField )) {
+            valueToDisplay = formData[currentField];
           }
 
           if( !structKeyExists( local, "valueToDisplay" )) {
@@ -882,6 +948,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
 
+
+
   // Private functions:
 
   /** Compares two component instances wither by ID or by using Java's equals()
@@ -956,19 +1024,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   /** Processes the queued instructions in one batch
     */
-  private void function processQueue() {
-    var instructionsTimer = 0;
-
+  private void function processQueue( validationInstance ) {
     if( variables.instance.debug ) {
-      basecfcLog( text = "~~ start processing queue for #variables.instance.meta.name# ~~", file = request.appName );
-    }
-
-    var useValidation = false;
-
-    if( structKeyExists( variables.instance, "validationService" )) {
-      var validationService = variables.instance.validationService;
-      var validationEngine = validationService.getValidationEngine();
-      useValidation = true;
+      var instructionTimers = 0;
+      basecfcLog( text="~~ start processing queue for #variables.instance.meta.name# ~~", file=request.appName );
     }
 
     var queuedInstructions = request.basecfc.queuedInstructions;
@@ -992,61 +1051,64 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var finalInstruction = ( isSimpleValue( value ) && value == "null" ) ?
                 "object." & command & "(javaCast('null',0))" :
                 "object." & command & "(value)";
-          var logMessage = "called: [#objectid#] #finalInstruction#";
-          var instructionTimer = getTickCount();
+          var logMessage = "called: [#objectid#] #finalInstruction##isSimpleValue( value )?' (value=#value#)':''#";
+
+          if( variables.instance.debug ) {
+            var instructionTimer = getTickCount();
+          }
 
           try {
             evaluate( finalInstruction );
-
-            if( variables.instance.debug ) {
-              basecfcLog( text = logMessage, file = request.appName );
-            }
           } catch( any e ) {
-            logMessage &= " FAILED";
-            basecfcLog( text = logMessage, file = request.appName, type = "fatal" );
-            // if( variables.instance.debug ) {
-              rethrow;
-            // }
+            basecfcLog( text=logMessage & " FAILED", file=request.appName, type="fatal" );
+            rethrow;
           }
-
-          var instructionTimer = ( getTickCount() - instructionTimer );
 
           if( variables.instance.debug ) {
-            basecfcLog( "t=#instructionTimer#" );
+            instructionTimer = getTickCount()-instructionTimer;
+            basecfcLog( text=logMessage & " (t=#instructionTimer#)", file=request.appName );
+            instructionTimers += instructionTimer;
           }
-
-          instructionsTimer += instructionTimer;
         }
       }
 
-      if( useValidation ) {
-        var validated = validationEngine.validate( object );
+      if( !isNull( validationInstance )) {
+        var validated = validationInstance.validate( object );
 
         if( validated.hasErrors()) {
-          var validationReport = [];
+          var validationReport = validationInstance.getReport();
+          var errorsInValidation = validated.getErrors();
 
-          for( var err in validated.getErrors()) {
-            arrayAppend( validationReport, err );
+          basecfcLog( text="#object.getEntityName()# has #arrayLen( errorsInValidation )# error(s).", file=request.appName );
+
+          for( var err in errorsInValidation ) {
             var prop = err.getProperty();
             var obj = err.getClass();
             var errorMessage = "Invalid value";
             var problemValue = object.safeGet( prop );
-            if( len( trim( problemValue ))) {
-              errorMessage &= " (#problemValue#)";
-            }
+            if( len( trim( problemValue ))) { errorMessage &= " (#problemValue#)"; }
             errorMessage &= " for #prop# in #obj#: #err.getMessage()#";
+
+            arrayAppend( validationReport, {
+              "type" = "validation",
+              "object" = obj,
+              "field" = prop,
+              "value" = problemValue,
+              "datatype" = "",
+              "message" = errorMessage,
+              "detail" = ""
+            });
+
             basecfcLog( text = errorMessage, file = request.appName );
           }
 
-          validationService.setValidationReport( validationReport );
-
-          // throw( "basecfc.processQueue", "Validation error", "#object.getEntityName()# contains #arrayLen( validated.getErrors())# error(s). See log for details." );
+          validationInstance.setReport( validationReport );
         }
       }
     }
 
     if( variables.instance.debug ) {
-      basecfcLog( text = "~~ finished queue in " & instructionsTimer & "ms. ~~", file = request.appName );
+      basecfcLog( text = "~~ finished queue in " & instructionTimers & "ms. ~~", file = request.appName );
     }
   }
 
@@ -1144,7 +1206,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
 
         if( isNull( objectToLink )) {
-          basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
+          if( variables.instance.debug ) {
+            basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
+          }
           var objectToLink = entityNew( property.entityName );
           entitySave( objectToLink );
         }
@@ -1203,5 +1267,24 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     */
   private string function propertyName( property ) {
     return structKeyExists( property, 'singularName' ) ? property.singularName : property.name;
+  }
+
+  /** Returns the data type of a property.
+    */
+  private string function getDatatype( property ) {
+    if( structKeyExists( property, "type" )) {
+      if( structKeyExists( property, "percentage" ) &&
+          isBoolean( property.percentage ) &&
+          property.percentage ) {
+        return "percentage";
+      }
+      return property.type;
+    }
+    if( structKeyExists( property, "ormtype" )) { return property.ormtype; }
+    if( structKeyExists( property, "sqltype" )) { return property.sqltype; }
+    if( structKeyExists( property, "datatype" )) { return property.datatype; }
+    if( structKeyExists( property, "fieldType" )) { return property.fieldType; }
+
+    return "string";
   }
 }
