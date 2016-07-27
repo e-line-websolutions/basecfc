@@ -25,6 +25,7 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
+  property persistent=false inapi=false name="version" default="3.2.0" type="string";
 
   param request.appName="basecfc";
 
