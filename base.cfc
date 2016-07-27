@@ -25,45 +25,60 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
-  property persistent=false inapi=false name="version" default="3.1.1" type="string";
 
   param request.appName="basecfc";
 
-  /** The constructor needs to be called in order to populate the instance
+  /**
+    * The constructor needs to be called in order to populate the instance
     * variables (like instance.meta which is used by the other methods)
     */
   public component function init() {
-    variables.instance = {
-      "config" = { "log" = false, "disableSecurity" = true },
-      "debug" = false,
-      "meta" = getMetaData(),
-      "entities" = {},
-      "properties" = {},
-      "id" = createUUID()
-    };
-
-    variables.instance.properties = getInheritedProperties();
-
-    if((
-        !structKeyExists( variables.instance.properties, "name" ) ||
-        !structKeyExists( variables.instance.properties, "deleted" ) ||
-        !structKeyExists( variables.instance.properties, "sortorder" )
-      ) && getClassName() != "basecfc.base" ) {
-      throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
-    }
-
     param variables.name="";
     param variables.deleted=false;
     param variables.sortorder=0;
 
-    try{
-      variables.allEntities = ORMGetSessionFactory().getAllClassMetadata();
+    variables.instance = {
+      "config" = { "log" = false, "disableSecurity" = true },
+      "debug" = false,
+      "entities" = {},
+      "id" = createUUID(),
+      "meta" = getMetaData(),
+      "sanitizeDataTypes" = [
+        "date",
+        "datetime",
+        "double",
+        "float",
+        "int",
+        "integer",
+        "numeric",
+        "percentage",
+        "timestamp"
+      ]
+    };
 
-      for( variables.key in variables.allEntities ) {
-        variables.entity = variables.allEntities[variables.key];
-        structInsert( variables.instance.entities, variables.key, variables.entity.getEntityName());
+    if( structKeyExists( url, "reload" )) {
+      var allCacheIds = cacheGetAllIds();
+      if( !arrayIsEmpty( allCacheIds )) {
+        cacheRemove( arrayToList( allCacheIds ), false );
       }
-    } catch( any e ) {}
+    }
+
+    if( !structKeyExists( request, "allEntities" )) {
+      var cachedEntities = cacheGet( "#request.appName#-allEntities" );
+      if( isNull( cachedEntities )) {
+        var cachedEntities = {};
+        var allEntities = ORMGetSessionFactory().getAllClassMetadata();
+        for( var key in allEntities ) {
+          var entity = allEntities[ key ];
+          structInsert( cachedEntities, key, {
+            "name" = entity.getEntityName(),
+            "table" = entity.getTableName()
+          });
+        }
+        cachePut( "#request.appName#-allEntities", cachedEntities );
+      }
+      request.allEntities = cachedEntities;
+    }
 
     if( structKeyExists( request, "context" ) && isStruct( request.context )) {
       structAppend( variables.instance, request.context, true );
@@ -71,10 +86,31 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     structAppend( variables.instance, arguments, true );
 
+    param variables.instance.config.root="root";
+
+    var className = getClassName();
+
+    var cachedProperties = cacheGet( "#request.appName#-#className#-props" );
+    if( isNull( cachedProperties )) {
+      var cachedProperties = getInheritedProperties();
+      cachePut( "#request.appName#-#className#-props", cachedProperties );
+    }
+
+    variables.instance.properties = cachedProperties;
+
+    if((
+        !structKeyExists( instance.properties, "name" ) ||
+        !structKeyExists( instance.properties, "deleted" ) ||
+        !structKeyExists( instance.properties, "sortorder" )
+      ) && className != "basecfc.base" ) {
+      throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
+    }
+
     return this;
   }
 
-  /** This persists objects extending this base cfc into a database using ORM
+  /**
+    * This persists objects extending this base cfc into a database using ORM
     * It goes through all passed fields and updates all linked objects recursively
     *
     * @formData The data structure containing the new data to be saved
@@ -111,7 +147,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var timer = getTickCount();
     var entityName = getEntityName();
-    var canBeLogged = ( variables.instance.config.log && isInstanceOf( this, "root.model.logged" ));
+    var canBeLogged = ( variables.instance.config.log && isInstanceOf( this, "#variables.instance.config.root#.model.logged" ));
     var defaultFields = "log,id,fieldnames,submitbutton,#entityName#id";
     var inheritedProperties = variables.instance.properties;
     var logFields = "createContact,createDate,createIP,updateContact,updateDate,updateIP";
@@ -129,6 +165,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       request.basecfc.instructionsOrder = {};
       request.basecfc.queuedInstructions = {};
       request.basecfc.queuedObjects = { "#variables.instance.id#" = this };
+      request.basecfc.ormSession = ormGetSession();
 
       if( canBeLogged ) {
         if( !len( trim( getCreateDate()))) {
@@ -147,7 +184,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             if( !structKeyExists( formData, "createContact" ) &&
                 structKeyExists( variables.instance, "auth" ) &&
                 structKeyExists( variables.instance.auth, "userID" ) &&
-                isGUID( variables.instance.auth.userID )) {
+                isValidGUID( variables.instance.auth.userID )) {
               formData.createContact = variables.instance.auth.userID;
             }
           }
@@ -155,7 +192,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           if( !structKeyExists( formData, "updateContact" ) &&
               structKeyExists( variables.instance, "auth" ) &&
               structKeyExists( variables.instance.auth, "userID" ) &&
-                isGUID( variables.instance.auth.userID )) {
+                isValidGUID( variables.instance.auth.userID )) {
             formData.updateContact = variables.instance.auth.userID;
           }
         }
@@ -209,7 +246,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           <h2 onclick="#collapse#">#depth#:#entityName#:#getID()#</h2>
           <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
             <tr>
-              <th colspan="2">Name: "#variables.name#"</th>
+              <th colspan="2">Name: "#getName()#"</th>
             </tr>
       ' );
     }
@@ -274,49 +311,69 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         param string property.fieldtype="string";
 
         if( structKeyExists( property, "cfc" )) {
-          var reverseCFCLookup = listFindNoCase( logFields, key ) ? "root.model.logged" : getClassName();
+          var reverseCFCLookup = listFindNoCase( logFields, key ) ? "#variables.instance.config.root#.model.logged" : getClassName();
         }
 
         switch( property.fieldtype ) {
-          case "one-to-one":
-          //   ___                  _____            ___
-          //  / _ \  _ _   ___  ___|_   _|___  ___  / _ \  _ _   ___
-          // | (_) || ' \ / -_)|___| | | / _ \|___|| (_) || ' \ / -_)
-          //  \___/ |_||_|\___|      |_| \___/      \___/ |_||_|\___|
-          //
-            throw( message="Not implemented", detail="One-to-one relations are not yet supported.", type="basecfc.save" );
-
           case "one-to-many":
           case "many-to-many":
-          //   ___                  _____           __  __
-          //  / _ \  _ _   ___  ___|_   _|___  ___ |  \/  | __ _  _ _  _  _
-          // | (_) || ' \ / -_)|___| | | / _ \|___|| |\/| |/ _` || ' \| || |
-          //  \___/ |_||_|\___|      |_| \___/     |_|  |_|\__,_||_||_|\_, |
-          //                                                           |__/
+          //  _____           __  __
+          // |_   _|___  ___ |  \/  | __ _  _ _  _  _
+          // | | | / _ \|___|| |\/| |/ _` || ' \| || |
+          //   |_| \___/     |_|  |_|\__,_||_||_|\_, |
+          //                                     |__/
             valueToLog = [];
 
             // Alias for set_ which overwrites linked data with new data
             if( structKeyExists( formData, property.name )) {
-              formData["set_#property.name#"] = formData[property.name];
+              formData[ "set_#property.name#" ] = formData[ property.name ];
             }
 
             // REMOVE
             if( structKeyExists( formData, "set_#property.name#" ) || structKeyExists( formData, "remove_#property.name#" )) {
-              var query = "SELECT b FROM #entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
-              var params = { "id" = getID()};
-
-              if( structKeyExists( formData, "remove_#property.name#" )) {
-                query &= " AND b.id IN ( :list )";
-                params["list"] = listToArray( formData["remove_#property.name#"] );
-                arrayAppend( valueToLog, "removed #property.name#" );
-              }
+              var tableName = getTableName();
+              var otherTable = getTableName( property.cfc );
+              var sqlparams = { "id" = getID()};
 
               try {
-                var objectsToOverride = ORMExecuteQuery( query, params );
+                if( structKeyExists( server, "lucee" )) {
+                  // temporary solution for Lucee 5 bug I get with HQL queries:
+                  var sql = " SELECT b.* FROM #tableName# a ";
+                  if( property.fieldType == "one-to-many" ) {
+                    sql &= "INNER JOIN #otherTable# b ON a.id = b.#property.fkcolumn# ";
+                  } else if( property.fieldType == "many-to-many" ) {
+                    sql &= " INNER JOIN #property.linkTable# c ON a.id = c.#property.fkcolumn# INNER JOIN #otherTable# b ON c.#property.inversejoincolumn# = b.id ";
+                  }
+                  sql &= " WHERE a.id = :id ";
+                  if( structKeyExists( formData, "remove_#property.name#" )) {
+                    sql &= " AND b.id IN ( :list )";
+                    sqlparams[ "list" ] = listToArray( formData[ "remove_#property.name#" ]);
+                    arrayAppend( valueToLog, "removed #property.name#" );
+                  }
+                  var sqlQuery = request.basecfc.ormSession.createSQLQuery( sql ).addEntity( property.entityName );
+                  for( var key in sqlparams ) {
+                    var sqlvalue = sqlparams[ key ];
+                    if( isArray( sqlvalue )) {
+                      sqlQuery = sqlQuery.setParameterList( key, sqlvalue );
+                    } else if( isSimpleValue( sqlvalue )) {
+                      sqlQuery = sqlQuery.setString( key, sqlvalue );
+                    }
+                  }
+                  var objectsToOverride = sqlQuery.list();
+                } else {
+                  var sql = "SELECT b FROM #entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
+                  var params = { "id" = getID()};
+                  if( structKeyExists( formData, "remove_#property.name#" )) {
+                    sql &= " AND b.id IN ( :list )";
+                    params[ "list" ] = listToArray( formData[ "remove_#property.name#" ]);
+                    arrayAppend( valueToLog, "removed #property.name#" );
+                  }
+                  var objectsToOverride = ORMExecuteQuery( sql, params );
+                }
               } catch( any e ) {
                 throw( type = "basecfc.global",
-                       message = "Error in query: " & query,
-                       detail = "Params: #serializeJSON( params )#" );
+                       message = "Error in query: " & sql,
+                       detail = "Params: #serializeJSON( sqlparams )#" );
               }
 
               for( var objectToOverride in objectsToOverride ) {
@@ -334,7 +391,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
             // SET
             if( structKeyExists( formData, "set_#property.name#" )) {
-              var workData = formData["set_#property.name#"];
+              var workData = formData[ "set_#property.name#" ];
 
               if( isSimpleValue( workData )) {
                 if( isJSON( workData )) {
@@ -354,7 +411,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 var entitiesToAdd = [];
 
                 for( var toAdd in workData ) {
-                  if( !isJSON( toAdd ) && !isObject( toAdd )) {
+                  if( !isJSON( toAdd ) && !isObject( toAdd ) && !isSimpleValue( toAdd )) {
                     toAdd = serializeJSON( toAdd );
                   }
 
@@ -362,7 +419,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   structDelete( local, "toAdd" );
                 }
 
-                formData["add_#propertyName( property )#"] = entitiesToAdd;
+                formData[ "add_#propertyName( property )#" ] = entitiesToAdd;
                 structDelete( local, "entitiesToAdd" );
               }
 
@@ -372,7 +429,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
             // ADD
             if( structKeyExists( formData, "add_#propertyName( property )#" )) {
-              var workData = formData["add_#propertyName( property )#"];
+              var workData = formData[ "add_#propertyName( property )#" ];
 
               if( isSimpleValue( workData )) {
                 if( isJSON( workData )) {
@@ -399,8 +456,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                 if( !isNull( objectToLink )) {
                   if( structKeyExists( request.basecfc.queuedInstructions, getID()) &&
-                      structKeyExists( request.basecfc.queuedInstructions[getID()], fn ) &&
-                      structKeyExists( request.basecfc.queuedInstructions[getID()][fn], objectToLink.getID())) {
+                      structKeyExists( request.basecfc.queuedInstructions[ getID() ], fn ) &&
+                      structKeyExists( request.basecfc.queuedInstructions[ getID() ][ fn ], objectToLink.getID())) {
                     structDelete( local, "objectToLink" );
                     continue; // already queued
                   }
@@ -457,12 +514,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
             break;
 
+          case "one-to-one":
+          //   ___                  _____            ___
+          //  / _ \  _ _   ___  ___|_   _|___  ___  / _ \  _ _   ___
+          // | (_) || ' \ / -_)|___| | | / _ \|___|| (_) || ' \ / -_)
+          //  \___/ |_||_|\___|      |_| \___/      \___/ |_||_|\___|
+          //
+            throw( message="Not implemented", detail="One-to-one relations are not yet supported.", type="basecfc.save" );
+
           default:
-          //  __  __                       _____            ___
-          // |  \/  | __ _  _ _  _  _  ___|_   _|___  ___  / _ \  _ _   ___
-          // | |\/| |/ _` || ' \| || ||___| | | / _ \|___|| (_) || ' \ / -_)
-          // |_|  |_|\__,_||_||_|\_, |      |_| \___/      \___/ |_||_|\___|
-          //                     |__/
+          //  _____            ___
+          // |_   _|___  ___  / _ \  _ _   ___
+          // | | | / _ \|___|| (_) || ' \ / -_)
+          //   |_| \___/      \___/ |_||_|\___|
+          //
             if( structKeyExists( formData, property.name )) {
               // save value and link objects together
               var fn = "set" & property.name;
@@ -527,10 +592,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 } catch ( any e ) {}
 
                 var skipThisField = false;
+                var dataType = getDatatype( property );
 
-                if( useSanitation ) {
+                if( useSanitation && arrayFindNoCase( variables.instance.sanitizeDataTypes, dataType )) {
                   var dirtyValue = duplicate( nestedData );
-                  var dataType = getDatatype( property );
 
                   nestedData = sanitationInstance.sanitize( nestedData, dataType );
 
@@ -646,15 +711,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var logentry = entityNew( "logentry" );
         entitySave( logentry );
         basecfcLog( text = "Creating new log entry.", file = request.appName );
-        transaction {
-          try {
-            logentry.enterIntoLog( logAction, savedState, this );
-            transactionCommit();
-          } catch ( any e ) {
-            transactionRollback();
-            rethrow;
-          }
-        }
+        logentry.enterIntoLog( logAction, savedState, this );
       }
     }
 
@@ -666,31 +723,44 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   // Utility functions:
 
-  /** returns the full cfc path
+  /**
+    * the full cfc path
     */
   public string function getClassName() {
     var sep = server.os.name contains 'Windows' ? '\' : '/';
     var start = findNoCase( '#sep#model#sep#', variables.instance.meta.path );
     if( start > 0 ) {
-      return "root" & replace( replace( mid( variables.instance.meta.path, start, len( variables.instance.meta.path )), '.cfc', '', 'one' ), sep, '.', 'all' );
+      return variables.instance.config.root & replace( replace( mid( variables.instance.meta.path, start, len( variables.instance.meta.path )), '.cfc', '', 'one' ), sep, '.', 'all' );
     }
 
     return variables.instance.meta.fullname;
   }
 
-  /** returns the entity name (as per CFML ORM standard)
+  /**
+    * the entity name (as per CFML ORM standard)
     */
   public string function getEntityName( string className=getClassName()) {
     var basicEntityName = listLast( className, '.' );
-
-    if( structKeyExists( variables.instance.entities, basicEntityName )) {
-      return variables.instance.entities[basicEntityName];
+    if( structKeyExists( request.allEntities, basicEntityName )) {
+      return request.allEntities[ basicEntityName ].name;
     }
-
     return basicEntityName;
   }
 
-  /** This method needs to be moved to a controller, since it has to do with output.
+  /**
+    * the database table name (as per CFML ORM standard)
+    */
+  public string function getTableName( string className=getClassName()) {
+    var basicEntityName = listLast( className, '.' );
+    if( structKeyExists( request.allEntities, basicEntityName )) {
+      return request.allEntities[ basicEntityName ].table;
+    }
+    return basicEntityName;
+  }
+
+  /**
+    *
+    * This method needs to be moved to a controller, since it has to do with output.
     */
   public array function getFieldsToDisplay( string type="inlineedit-line", struct formData={} ) {
     var result = [];
@@ -743,13 +813,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return result;
   }
 
-  /** Overrid default getter to generate a GUID to identify this object with.
+  /**
+    * Overrid default getter to generate a GUID to identify this object with.
     */
   public string function getID() {
     return isNew() ? variables.instance.id : variables.id;
   }
 
-  /** returns a struct containing this objects and its ancestors properties
+  /**
+    * a struct containing this objects and its ancestors properties
     */
   public struct function getInheritedProperties() {
     var meta = variables.instance.meta;
@@ -780,7 +852,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return result;
   }
 
-  /** find the corresponding field in the joined object (using the FKColumn)
+  /**
+    * Find the corresponding field in the joined object (using the FKColumn)
     */
   public string function getReverseField( required string cfc, required string fkColumn, boolean singular=true ) {
     var propertiesWithCFC = structFindKey( variables.instance.properties, "cfc", "all" );
@@ -857,29 +930,30 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return result;
   }
 
-  /** returns true if propertyToCheck is found in this object or its ancestors
+  /**
+    * true if propertyToCheck is found in this object or its ancestors
     */
-  public boolean function hasProperty( required string propertyToCheck ) {
+  public boolean function propertyExists( required string propertyToCheck ) {
     return structKeyExists( variables.instance.properties, propertyToCheck );
   }
 
-  /** Determines whether this is a new object (without an ID) or an existing one
+  /**
+    * Determines whether this is a new object (without an ID) or an existing one
     */
   public boolean function isNew() {
-    var hasValidID = structKeyExists( variables, "id" ) && !isNull( variables.id ) && isGUID( variables.id );
-
-
-    return !hasValidID;
+    return ( isNull( variables.id ) || !isValidGUID( variables.id ));
   }
 
-  /** Returns a serialized JSON object (a string) representation of this object
+  /**
+    * a serialized JSON object (a string) representation of this object
     * using Adam Tuttle's deORM() - see below
     */
   public string function toString() {
     return serializeJSON( deORM( this ));
   }
 
-  /** Returns a simplified representation of the object
+  /**
+    * a simplified representation of the object
     * By Adam Tuttle ( http://fusiongrokker.com/post/deorm ).
     * @data One or more entities to be converted to a less complex representation
     */
@@ -927,7 +1001,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return deWormed;
   }
 
-  /** Safe get
+  /**
+    * Safe get
     */
   public any function safeGet( prop ) {
     try {
@@ -947,13 +1022,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
+  public struct function getInstanceVariables() {
+    return variables.instance;
+  }
 
 
 
   // Private functions:
 
-  /** Compares two component instances wither by ID or by using Java's equals()
-   */
+  /**
+    * Compares two component instances wither by ID or by using Java's equals()
+    */
   private boolean function compareObjects( required component objA, required component objB ) {
     var idA = objA.getID();
     var idB = objB.getID();
@@ -972,7 +1051,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return comparisonA.equals( comparisonB );
   }
 
-  /** Preps string before validating it as GUID */
+  /**
+    * Preps string before validating it as GUID
+    */
   private string function formatAsGUID( required string text ) {
     var massagedText = reReplace( text, '\W', '', 'all' );
 
@@ -988,10 +1069,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return massagedText;
   }
 
-  /** Tests a string to be a valid GUID by using the built-in isValid method and
+  /**
+    * Tests a string to be a valid GUID by using the built-in isValid method and
     * falling back on reformatting the string and rechecking
     */
-  private boolean function isGUID( required string text ) {
+  private boolean function isValidGUID( required string text ) {
     if( len( text ) < 32 ) {
       return false;
     }
@@ -1003,8 +1085,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return isValid( "guid", formatAsGUID( text ));
   }
 
-  /** Parses a JSON string into a struct (or passes through the given struct)
-   */
+  /**
+    * Parses a JSON string into a struct (or passes through the given struct)
+    */
   private struct function parseUpdateStruct( required any data ) {
     var result = {};
 
@@ -1022,7 +1105,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return result;
   }
 
-  /** Processes the queued instructions in one batch
+  /**
+    * Processes the queued instructions in one batch
     */
   private void function processQueue( validationInstance ) {
     if( variables.instance.debug ) {
@@ -1112,7 +1196,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
-  /** Method to add instructions to the queue, which is later processed using
+  /**
+    * Method to add instructions to the queue, which is later processed using
     * processQueue() overwriting previous instructions so no duplicate actions
     * are taking place
     */
@@ -1171,51 +1256,54 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
-  /** Takes a GUID or struct containing one and an entity name to construct a
+  /**
+    * Takes a GUID or struct containing one and an entity name to construct a
     * component (or passes along the given component)
     */
   private any function toComponent( required any variable, required struct property ) {
     try {
-      if( isObject( variable ) && isInstanceOf( variable, property.cfc )) {
-        return variable;
-      } else {
-        if( isSimpleValue( variable ) && isGUID( variable )) {
-          variable = { "id" = variable };
+      var parsedVar = variable;
+
+      if( isObject( parsedVar ) && isInstanceOf( parsedVar, property.cfc )) {
+        return parsedVar;
+      }
+
+      if( isSimpleValue( parsedVar ) && len( trim( parsedVar ))) {
+        if( isValidGUID( parsedVar )) {
+          parsedVar = { "id" = parsedVar };
+        } else if( isJSON( parsedVar )) {
+          parsedVar = deserializeJSON( parsedVar );
+        }
+      }
+
+      if( isStruct( parsedVar )) {
+        if( structIsEmpty( parsedVar )) {
+          return javaCast( "null", 0 );
         }
 
-        if( isSimpleValue( variable ) && len( trim( variable )) && isJSON( variable )) {
-          variable = deserializeJSON( variable );
+        var pk = "";
+
+        if( structKeyExists( parsedVar, "#property.entityName#id" )) {
+          pk = parsedVar[ "#property.entityName#id" ];
+        } else if( structKeyExists( parsedVar, "id" )) {
+          pk = parsedVar[ "id" ];
         }
 
-        if( isStruct( variable )) {
-          if( structCount( variable ) == 0 ) {
-            return javaCast( "null", 0 );
-          }
-
-          var pk = "";
-
-          if( structKeyExists( variable, "#property.entityName#id" )) {
-            pk = variable["#property.entityName#id"];
-          } else if( structKeyExists( variable, "id" )) {
-            pk = variable["id"];
-          }
-
-          if( isGUID( pk )) {
-            var objectToLink = entityLoadByPK( property.entityName, pk );
-          }
+        if( isValidGUID( pk )) {
+          var objectToLink = entityLoadByPK( property.entityName, pk );
         }
+      }
 
-        if( isNull( objectToLink )) {
-          if( variables.instance.debug ) {
-            basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
-          }
-          var objectToLink = entityNew( property.entityName );
-          entitySave( objectToLink );
+      if( isNull( objectToLink )) {
+        if( variables.instance.debug ) {
+          basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
         }
+        var objectToLink = entityNew( property.entityName );
+        entitySave( objectToLink );
+      }
 
-        if( isObject( objectToLink )) {
-          return objectToLink;
-        }
+      if( isObject( objectToLink )) {
+        return objectToLink;
       }
 
       var logMessage = "Variable could not be translated to component of type #property.entityName#";
@@ -1251,7 +1339,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
-  /** Route all logging through this method so it can be changed to some
+  /**
+    * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
   private void function basecfcLog( text, file="#request.appName#", type="information" ) {
@@ -1262,14 +1351,16 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
   }
 
-  /** Returns the singular property name, if that exists, otherwise it returns
+  /**
+    * the singular property name, if that exists, otherwise it returns
     * the default name
     */
   private string function propertyName( property ) {
     return structKeyExists( property, 'singularName' ) ? property.singularName : property.name;
   }
 
-  /** Returns the data type of a property.
+  /**
+    * the data type of a property.
     */
   private string function getDatatype( property ) {
     if( structKeyExists( property, "type" )) {

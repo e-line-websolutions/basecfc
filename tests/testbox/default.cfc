@@ -37,11 +37,11 @@ component extends="testbox.system.BaseSpec" {
           .toInclude( '"name"' );
       });
 
-      it( "Expects hasProperty() to return true when the entity has the provided property and false when it doesn't.", function() {
-        expect( obj.hasProperty( "name" ))
+      it( "Expects propertyExists() to return true when the entity has the provided property and false when it doesn't.", function() {
+        expect( obj.propertyExists( "name" ))
           .toBeBoolean()
           .toBeTrue();
-        expect( obj.hasProperty( "droids" ))
+        expect( obj.propertyExists( "droids" ))
           .toBeBoolean()
           .toBeFalse();
       });
