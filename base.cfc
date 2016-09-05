@@ -157,7 +157,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         "timers" = {},
         "instructionsOrder" = { },
         "queuedInstructions" = { },
-        "queuedObjects" = { "#instance.id#" = this },
+        "queuedObjects" = { "#getId()#" = this },
         "ormSession" = ormGetSession( )
       };
 
@@ -506,6 +506,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                       var hasReverseValue = evaluate( "objectToLink.has#reverseField#(this)" );
 
                       if ( hasReverseValue ) {
+                        // disabled this so when nested object have changes, those get saved too
                         // skipToNextPropery = true;
                       }
 
@@ -543,6 +544,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   } else {
                     valueToLog = "removed";
                   }
+
+
                 } else if ( isSimpleValue( nestedData ) ) {
                   // check inside json obj to see if an ID was passed in
                   try {
@@ -670,21 +673,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // Process queued instructions
     if ( depth == 0 ) {
-      if ( structKeyExists( request.basecfc, "validationService" ) ) {
-        processQueue( request.basecfc.validationService );
-      } else {
-        processQueue( );
-      }
+      processQueue( );
 
       if ( canBeLogged && instance.entityName != "logentry" ) {
         var logAction = isNew( ) ? "created" : "changed";
-        // thread name="t_logentry_for_#getId()#" action="run" timeout="30" logAction=logAction savedState=savedState entityToLog=this {
-          var logentry = entityNew( "logentry" );
-          // entitySave( logentry );
-          var logResult = logentry.enterIntoLog( logAction, savedState, this );
-          writeLog( text = "Added log entry for #getName()# (#logResult.getId()#).", file = request.appName );
-          rc.log = logResult;
-        // }
+        var logEntry = entityNew( "logentry" );
+        var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+        writeLog( text = "Added log entry for #getName()# (#logResult.getId()#).", file = request.appName );
+        request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
       }
     }
 
@@ -1027,7 +1023,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     massagedText = insert( '-', massagedText, 12 );
     massagedText = insert( '-', massagedText, 8 );
 
-    return massagedText;
+    return trim( uCase( massagedText ) );
   }
 
   /**
@@ -1069,19 +1065,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * Processes the queued instructions in one batch
     */
-  private void function processQueue( validationInstance ) {
+  private void function processQueue() {
     if ( instance.debug ) {
       var instructionTimers = 0;
       basecfcLog( text = "~~ start processing queue for #instance.meta.name# ~~", file = request.appName );
     }
 
     var queuedInstructions = request.basecfc.queuedInstructions;
-
-    for ( var objectid in queuedInstructions ) {
-      var object = request.basecfc.queuedObjects[ objectid ];
-      // writeOutput( "Saving #object.getEntityName()# (#object.getName()#)<br />" );
-      entitySave( object );
-    }
 
     // per object
     for ( var objectid in queuedInstructions ) {
@@ -1122,11 +1112,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
       }
 
-      if ( !isNull( validationInstance ) ) {
-        var validated = validationInstance.validate( object );
+      if ( structKeyExists( request.basecfc, "validationService" ) ) {
+        var validated = request.basecfc.validationService.validate( object );
 
         if ( validated.hasErrors( ) ) {
-          var validationReport = validationInstance.getReport( );
+          var validationReport = request.basecfc.validationService.getReport( );
           var errorsInValidation = validated.getErrors( );
 
           basecfcLog( text = "#object.getEntityName( )# has #arrayLen( errorsInValidation )# error(s).", file = request.appName );
@@ -1157,9 +1147,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             basecfcLog( text = errorMessage, file = request.appName );
           }
 
-          validationInstance.setReport( validationReport );
+          request.basecfc.validationService.setReport( validationReport );
         }
       }
+    }
+
+    for( var objectId in structKeyArray( request.basecfc.queuedObjects ) ) {
+      var object = request.basecfc.queuedObjects[ objectId ];
+      entitySave( object );
+      basecfcLog( text = "Saving #object.getEntityName()# - #object.getName()# - #object.getId()#", file = request.appName );
     }
 
     if ( instance.debug ) {
@@ -1182,7 +1178,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var entityID = entity.getID( );
 
-    request.basecfc.queuedObjects[ entityID ] = entity;
+    if( !structKeyExists( request.basecfc.queuedObjects, entityID )) {
+      request.basecfc.queuedObjects[ entityID ] = entity;
+    }
 
     if ( !structKeyExists( request.basecfc.instructionsOrder, entityID ) ) {
       request.basecfc.instructionsOrder[ entityID ] = { };
@@ -1273,7 +1271,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
         }
         var objectToLink = entityNew( property.entityName );
-        // entitySave( objectToLink );
+        var objectId = objectToLink.getId();
+        if( !structKeyExists( request.basecfc.queuedObjects, objectId )) {
+          request.basecfc.queuedObjects[ objectId ] = objectToLink;
+        }
       }
 
       if ( isObject( objectToLink ) ) {
