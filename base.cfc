@@ -47,7 +47,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       "debug" = false,
       "entities" = { },
       "test" = [ ],
-      "id" = createUUID( ),
+      "id" = formatAsGUID( createUUID( )),
       "meta" = getMetaData( ),
       "sanitizeDataTypes" = [
         "date",
@@ -208,7 +208,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( instance.debug ) {
-      var debugid = createUUID( );
+      var debugid = formatAsGUID( createUUID( ));
       var collapse = "document.getElementById('#debugid#').style.display=(document.getElementById('#debugid#').style.display==''?'none':'');";
       var display = ' style="display:none;"';
 
@@ -651,7 +651,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( instance.debug && len( trim( debugoutput ) ) ) {
-        var colID = createUuid( );
+        var colID = formatAsGUID( createUuid( ));
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
         writeOutput( '
           <tr>
@@ -1076,15 +1076,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     var queuedInstructions = request.basecfc.queuedInstructions;
-    var touchedObjects = [ this ];
+
+    for ( var objectid in queuedInstructions ) {
+      var object = request.basecfc.queuedObjects[ objectid ];
+      // writeOutput( "Saving #object.getEntityName()# (#object.getName()#)<br />" );
+      entitySave( object );
+    }
 
     // per object
     for ( var objectid in queuedInstructions ) {
-      var touchedObject = false;
       var instructionOrder = request.basecfc.instructionsOrder[ objectid ];
       var object = request.basecfc.queuedObjects[ objectid ];
       var objectInstructions = queuedInstructions[ objectid ];
       var sortedCommands = structKeyArray( instructionOrder );
+
       arraySort( sortedCommands, "textNoCase", "asc" );
 
       // per command
@@ -1095,7 +1100,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         for ( var valueKey in values ) {
           var value = objectInstructions[ command ][ valueKey ];
           var finalInstruction = "object." & command & "(" & ( isSimpleValue( value ) && value == "null" ? "javaCast('null',0)" : "value" ) & ")";
-          var logMessage = "called: [#objectid#] #object.getEntityName()#.#command#(#isSimpleValue( value ) ? value : ''#)";
+          var logValue = isSimpleValue( value ) ? value : ( isObject( value ) ? value.getName() : '' );
+          var logMessage = "called: [#objectid#] #object.getEntityName()#.#command#(#logValue#)";
 
           if ( instance.debug ) {
             var instructionTimer = getTickCount( );
@@ -1103,7 +1109,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
           try {
             evaluate( finalInstruction );
-            touchedObject = true;
           } catch ( any e ) {
             basecfcLog( text = logMessage & " FAILED", file = request.appName, type = "fatal" );
             rethrow;
@@ -1154,20 +1159,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
           validationInstance.setReport( validationReport );
         }
-      }
-
-      if( touchedObject ) {
-        arrayAppend( touchedObjects, object );
-      }
-    }
-
-    for( var object in touchedObjects ) {
-      try {
-        entitySave( object );
-      } catch ( any e ) {
-        writeDump( getMetaData( object ) );
-        writeDump( e );
-        abort;
       }
     }
 
@@ -1326,8 +1317,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
-  private void function basecfcLog( text, file = "#request.appName#", type = "information" ) {
-    // writeLog( text = text, file = file, type = type );
+  private void function basecfcLog( text, file = request.appName, type = "information" ) {
+    writeLog( text = text, file = file, type = type );
 
     if ( instance.debug ) {
       writeOutput( "<br />" & text );
