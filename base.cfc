@@ -102,6 +102,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance.entityName = getEntityName( );
     variables.instance.properties = getInheritedProperties( );
     variables.instance.defaultFields = "log,id,fieldnames,submitbutton,#instance.entityName#id";
+    // variables.instance.debug = true;
 
     if ( (
         !structKeyExists( instance.properties, "name" ) ||
@@ -278,6 +279,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           }
 
           param string property.fieldtype="string";
+          param string property.dataType="";
 
           switch ( property.fieldtype ) {
             case "one-to-many":
@@ -544,73 +546,75 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   } else {
                     valueToLog = "removed";
                   }
-
-
-                } else if ( isSimpleValue( nestedData ) ) {
-                  // check inside json obj to see if an ID was passed in
-                  try {
-                    var testForJSON = deserializeJSON( nestedData );
-                    if ( isStruct( testForJSON ) && structKeyExists( testForJSON, "id" ) ) {
-                      nestedData = testForJSON.id;
-                    }
-                  } catch ( any e ) {
+                } else {
+                  if ( property.dataType == "json" && !isSimpleValue( nestedData ) ) {
+                    nestedData = serializeJSON( nestedData );
                   }
 
-                  var dataType = getDatatype( property );
+                  if ( isSimpleValue( nestedData ) ) {
+                    var dataType = getDatatype( property );
 
-                  if ( useSanitation && arrayFindNoCase( instance.sanitizeDataTypes, dataType ) ) {
-                    var dirtyValue = duplicate( nestedData );
-
-                    nestedData = sanitationInstance.sanitize( nestedData, dataType );
-
-                    var sanitationFailed = sanitationInstance.hasErrors( );
-
-                    if ( sanitationFailed ) {
-                      var sanitationReport = sanitationInstance.getReport( );
-                      var sanitationError = sanitationInstance.getError( );
-
-                      arrayAppend(
-                        sanitationReport,
-                        {
-                          "type" = "sanitation",
-                          "object" = instance.className,
-                          "field" = property.name,
-                          "value" = nestedData,
-                          "datatype" = dataType,
-                          "message" = sanitationError.message,
-                          "detail" = sanitationError.detail
-                        }
-                      );
-
-                      sanitationInstance.setReport( sanitationReport );
-
-                      basecfcLog( text = "sanitation of '#dirtyValue#' to '#dataType#' FAILED", file = request.appName );
-
-                      skipToNextPropery = true; // break off trying to set this value, as it won't work anyway.
-                    } else if ( instance.debug ) {
-                      basecfcLog( text = "value '#dirtyValue#' sanitized to '#nestedData#'", file = request.appName );
+                    // check inside json obj to see if an ID was passed in
+                    try {
+                      var testForJSON = deserializeJSON( nestedData );
+                      if ( isStruct( testForJSON ) && structKeyExists( testForJSON, "id" ) ) {
+                        nestedData = testForJSON.id;
+                      }
+                    } catch ( any e ) {
                     }
-                  }
 
-                  if ( !skipToNextPropery ) {
-                    // fix data types:
-                    var dt = getDatatype( property );
+                    if ( useSanitation && arrayFindNoCase( instance.sanitizeDataTypes, dataType ) ) {
+                      var dirtyValue = duplicate( nestedData );
 
-                    if ( listFindNoCase( "int,integer", dt ) ) {
-                      nestedData = javaCast( "int", val( nestedData ) );
-                    } else if ( dt == "float" ) {
-                      nestedData = javaCast( "float", val( nestedData ) );
-                    } else if ( listFindNoCase( "timestamp,date,datetime", dt ) ) {
-                      if( isDate( nestedData ) ) {
-                        nestedData = createODBCDateTime( nestedData );
-                      } else {
-                        writeDump( nestedData );abort;
+                      nestedData = sanitationInstance.sanitize( nestedData, dataType );
+
+                      var sanitationFailed = sanitationInstance.hasErrors( );
+
+                      if ( sanitationFailed ) {
+                        var sanitationReport = sanitationInstance.getReport( );
+                        var sanitationError = sanitationInstance.getError( );
+
+                        arrayAppend(
+                          sanitationReport,
+                          {
+                            "type" = "sanitation",
+                            "object" = instance.className,
+                            "field" = property.name,
+                            "value" = nestedData,
+                            "datatype" = dataType,
+                            "message" = sanitationError.message,
+                            "detail" = sanitationError.detail
+                          }
+                        );
+
+                        sanitationInstance.setReport( sanitationReport );
+
+                        basecfcLog( text = "sanitation of '#dirtyValue#' to '#dataType#' FAILED", file = request.appName );
+
+                        skipToNextPropery = true; // break off trying to set this value, as it won't work anyway.
+                      } else if ( instance.debug ) {
+                        basecfcLog( text = "value '#dirtyValue#' sanitized to '#nestedData#'", file = request.appName );
                       }
                     }
 
-                    queueInstruction( this, fn, nestedData );
+                    if ( !skipToNextPropery ) {
+                      // fix data types:
+                      if ( listFindNoCase( "int,integer", dataType ) ) {
+                        nestedData = javaCast( "int", val( nestedData ) );
+                      } else if ( dataType == "float" ) {
+                        nestedData = javaCast( "float", val( nestedData ) );
+                      } else if ( listFindNoCase( "timestamp,date,datetime", dataType ) ) {
+                        if( isDate( nestedData ) ) {
+                          nestedData = createODBCDateTime( nestedData );
+                        } else {
+                          writeDump( nestedData );abort;
+                        }
+                      }
 
-                    valueToLog = left( nestedData, 255 );
+                      queueInstruction( this, fn, nestedData );
+
+                      valueToLog = left( nestedData, 255 );
+                    }
                   }
                 }
 
