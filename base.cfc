@@ -583,7 +583,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                             "value" = nestedData,
                             "datatype" = dataType,
                             "message" = sanitationError.message,
-                            "detail" = sanitationError.detail
+                            "detail" = sanitationError.detail,
+                            "errortype" = sanitationError.type
                           }
                         );
 
@@ -1144,7 +1145,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 "value" = problemValue,
                 "datatype" = "",
                 "message" = errorMessage,
-                "detail" = ""
+                "detail" = "",
+                "errortype" = "validationServiceError.#err.getProperty()#"
               }
             );
 
