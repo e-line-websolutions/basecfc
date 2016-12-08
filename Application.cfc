@@ -17,7 +17,6 @@ component {
     CFCLocation = this.rootDir & "tests/model"
   };
 
-
   public void function onRequestStart() {
     ORMReload();
 

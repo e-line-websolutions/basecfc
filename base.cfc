@@ -26,7 +26,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  variables.version = "3.4";
+  variables.version = "3.5";
 
   param request.appName="basecfc";
 
@@ -40,6 +40,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.sortorder=0;
 
     variables.instance = {
+      "ormSessionFactory" = ORMGetSessionFactory( ),
       "config" = {
         "log" = false,
         "disableSecurity" = true
@@ -73,7 +74,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var cachedEntities = cacheGet( "#request.appName#-allEntities" );
       if ( isNull( cachedEntities ) ) {
         var cachedEntities = { };
-        var allEntities = ORMGetSessionFactory( ).getAllClassMetadata( );
+        var allEntities = instance.ormSessionFactory.getAllClassMetadata( );
         for ( var key in allEntities ) {
           var entity = allEntities[ key ];
           structInsert(
@@ -217,7 +218,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         request[ "basecfc-save" ] = true;
         writeOutput(
           '
-          <script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js"></script>
+          <script src="http://helper.e-line.nl/prettify/run_prettify.js"></script>
           <style>
             td,th,h2{padding:3px;}
             table,td,th{border:1px solid ##8091A4}
@@ -988,6 +989,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   public struct function getInstanceVariables( ) {
     return instance;
+  }
+
+  public array function getSubClasses() {
+    var result = [];
+    var classMetaData = instance.ormSessionFactory.getClassMetadata( instance.entityName );
+
+    if( !isNull( classMetaData ) && structKeyExists( classMetaData, "getSubclassClosure" ) ) {
+      result = classMetaData.getSubclassClosure();
+    }
+
+    return result;
   }
 
   // Private functions:
