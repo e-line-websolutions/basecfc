@@ -40,7 +40,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.sortorder=0;
 
     variables.instance = {
-      "ormSessionFactory" = ORMGetSessionFactory( ),
+      "sessionFactory" = ORMGetSessionFactory( ),
       "config" = {
         "log" = false,
         "disableSecurity" = true
@@ -74,7 +74,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var cachedEntities = cacheGet( "#request.appName#-allEntities" );
       if ( isNull( cachedEntities ) ) {
         var cachedEntities = { };
-        var allEntities = instance.ormSessionFactory.getAllClassMetadata( );
+        var allEntities = instance.sessionFactory.getAllClassMetadata( );
         for ( var key in allEntities ) {
           var entity = allEntities[ key ];
           structInsert(
@@ -418,7 +418,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 var fn = "add#propertyName( property )#";
 
                 for ( var nestedData in workData ) {
-                  var objectToLink = toComponent( nestedData, property );
+                  var propertyEntityName = property.entityName;
+
+                  if( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
+                    propertyEntityName = nestedData[ "__subclass" ];
+                  }
+
+                  var objectToLink = toComponent( nestedData, propertyEntityName, property.cfc );
 
                   if ( !isNull( objectToLink ) ) {
                     if ( structKeyExists( request.basecfc.queuedInstructions, getID( ) ) &&
@@ -444,7 +450,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     }
 
                     if ( !objectToLink.isNew( ) ) {
-                      updateStruct[ "#property.entityName#id" ] = objectToLink.getID( );
+                      updateStruct[ "#propertyEntityName#id" ] = objectToLink.getID( );
                     }
 
                     if ( property.fieldtype == "many-to-many" ) {
@@ -454,16 +460,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     updateStruct[ reverseField ] = this;
 
                     if ( instance.debug ) {
-                      basecfcLog( text = "called: #property.entityName#.save(#depth + 1#)", file = request.appName );
+                      basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
                     }
 
                     // Go down the rabbit hole:
                     var nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
                     arrayAppend( valueToLog, nestedData );
-
-
-
                   }
                 }
 
@@ -494,7 +497,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 var skipToNextPropery = false;
 
                 if ( structKeyExists( property, "cfc" ) ) {
-                  var objectToLink = toComponent( nestedData, property );
+                  var propertyEntityName = property.entityName;
+
+                  if( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
+                    propertyEntityName = nestedData[ "__subclass" ];
+                  }
+
+                  var objectToLink = toComponent( nestedData, propertyEntityName, property.cfc );
 
                   if ( !isNull( objectToLink ) ) {
                     if ( structKeyExists( request.basecfc.queuedInstructions, getID( ) ) &&
@@ -506,12 +515,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                       queueInstruction( this, fn, objectToLink );
 
                       var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
-                      var hasReverseValue = evaluate( "objectToLink.has#reverseField#(this)" );
-
-                      if ( hasReverseValue ) {
-                        // disabled this so when nested object have changes, those get saved too
-                        // skipToNextPropery = true;
-                      }
 
                       if( !skipToNextPropery ) {
                         var updateStruct = parseUpdateStruct( nestedData );
@@ -522,26 +525,26 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                         if( !skipToNextPropery ) {
                           if ( !objectToLink.isNew( ) ) {
-                            updateStruct[ "#property.entityName#id" ] = objectToLink.getID( );
+                            updateStruct[ "#propertyEntityName#id" ] = objectToLink.getID( );
                           }
 
                           updateStruct[ "add_#reverseField#" ] = this;
 
                           if ( instance.debug ) {
-                            basecfcLog( text = "called: #property.entityName#.save(#depth + 1#)", file = request.appName );
+                            basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
                           }
 
                           // Go down the rabbit hole:
                           nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
                           valueToLog = nestedData.getName( );
-                        } else {
+                        } else if( instance.debug ) {
                           writeOutput( "nothing to update" );
                         }
-                      } else {
+                      } else if( instance.debug ) {
                         writeOutput( "already in object" );
                       }
-                    } else {
+                    } else if( instance.debug ) {
                       writeOutput( "already queued" );
                     }
                   } else {
@@ -609,7 +612,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                         if( isDate( nestedData ) ) {
                           nestedData = createODBCDateTime( nestedData );
                         } else {
-                          writeDump( nestedData );abort;
+                          throw( "Invalid date/time", "basecfc.save", nestedData );
                         }
                       }
 
@@ -668,6 +671,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             <td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount() - propTimer#ms</td>
           </tr>
         ' );
+      }
+
+      if( structKeyExists( local, "updateStruct" ) ) {
+        structDelete( local, "updateStruct" );
       }
     }
 
@@ -992,14 +999,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   public array function getSubClasses() {
-    var result = [];
-    var classMetaData = instance.ormSessionFactory.getClassMetadata( instance.entityName );
+    var classMetaData = instance.sessionFactory.getClassMetadata( instance.entityName );
 
-    if( !isNull( classMetaData ) && structKeyExists( classMetaData, "getSubclassClosure" ) ) {
-      result = classMetaData.getSubclassClosure();
+    if( classMetaData.hasSubclasses() ) {
+      return classMetaData.getSubclassClosure();
     }
 
-    return result;
+    return [];
   }
 
   // Private functions:
@@ -1250,11 +1256,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Takes a GUID or struct containing one and an entity name to construct a
     * component (or passes along the given component)
     */
-  private any function toComponent( required any variable, required struct property ) {
+  private any function toComponent( required any variable, required string entityName, required string cfc ) {
     try {
       var parsedVar = variable;
 
-      if ( isObject( parsedVar ) && isInstanceOf( parsedVar, property.cfc ) ) {
+      if ( isObject( parsedVar ) && isInstanceOf( parsedVar, cfc ) ) {
         return parsedVar;
       }
 
@@ -1273,22 +1279,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
         var pk = "";
 
-        if ( structKeyExists( parsedVar, "#property.entityName#id" ) ) {
-          pk = parsedVar[ "#property.entityName#id" ];
+        if ( structKeyExists( parsedVar, "#entityName#id" ) ) {
+          pk = parsedVar[ "#entityName#id" ];
         } else if ( structKeyExists( parsedVar, "id" ) ) {
           pk = parsedVar[ "id" ];
         }
 
         if ( isValidGUID( pk ) ) {
-          var objectToLink = entityLoadByPK( property.entityName, pk );
+          var objectToLink = entityLoadByPK( entityName, pk );
         }
       }
 
       if ( isNull( objectToLink ) ) {
         if ( instance.debug ) {
-          basecfcLog( text = "Creating new #property.entityName#.", file = request.appName );
+          basecfcLog( text = "Creating new #entityName#.", file = request.appName );
         }
-        var objectToLink = entityNew( property.entityName );
+        var objectToLink = entityNew( entityName );
         var objectId = objectToLink.getId();
         if( !structKeyExists( request.basecfc.queuedObjects, objectId )) {
           request.basecfc.queuedObjects[ objectId ] = objectToLink;
@@ -1299,7 +1305,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         return objectToLink;
       }
 
-      var logMessage = "Variable could not be translated to component of type #property.entityName#";
+      var logMessage = "Variable could not be translated to component of type #entityName#";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.toComponent", message = logMessage );
     } catch ( basecfc.toComponent e ) {
@@ -1315,7 +1321,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       rethrow;
     } catch ( any e ) {
-      var logMessage = "While creating object #property.entityName#, an unexpected error occured: #e.message# (#e.detail#)";
+      var logMessage = "While creating object #entityName#, an unexpected error occured: #e.message# (#e.detail#)";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
 
       if ( instance.debug ) {
