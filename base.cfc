@@ -341,14 +341,36 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     var sql = "SELECT b FROM #instance.entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
                     var params = { "id" = getID( ) };
                     if ( structKeyExists( formData, "remove_#property.name#" ) ) {
-                      sql &= " AND b.id IN ( :list )";
-                      params[ "list" ] = listToArray( formData[ "remove_#property.name#" ] );
+                      var entitiesToRemove = formData[ "remove_#property.name#" ];
+
+                      if ( !isArray( entitiesToRemove ) ) {
+                        entitiesToRemove = [ entitiesToRemove ];
+                      }
+
+                      var entitiesToRemoveAsIds = [ ];
+
+                      for ( var entityToRemove in entitiesToRemove ) {
+                        var asEntityId = entityToRemove;
+
+                        if ( isObject( entityToRemove ) && structKeyExists( entityToRemove, "getId" ) ) {
+                          asEntityId = entityToRemove.getId( );
+                        }
+
+                        if ( isValidGUID( asEntityId ) ) {
+                          arrayAppend( entitiesToRemoveAsIds, asEntityId );
+                        }
+                      }
+
+                      params[ "list" ] = entitiesToRemoveAsIds;
+
                       arrayAppend( valueToLog, "removed #property.name#" );
+
+                      sql &= " AND b.id IN ( :list )";
                     }
                     var objectsToOverride = ORMExecuteQuery( sql, params );
                   }
                 } catch ( any e ) {
-                  throw( type = "basecfc.global", message = "Error in query: " & sql, detail = "Params: #serializeJSON( sqlparams )#" );
+                  throw( type = "basecfc.global", message = "Error in query", detail = "#e.message# #e.detail# - SQL: #sql#, Params: #serializeJSON( sqlparams )#" );
                 }
 
                 for ( var objectToOverride in objectsToOverride ) {
@@ -1068,16 +1090,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Tests a string to be a valid GUID by using the built-in isValid method and
     * falling back on reformatting the string and rechecking
     */
-  private boolean function isValidGUID( required string text ) {
-    if ( len( text ) < 32 ) {
+  private boolean function isValidGUID( required any potentialGuid ) {
+    if ( !isSimpleValue( potentialGuid ) ) {
       return false;
     }
 
-    if ( isValid( "guid", text ) ) {
+    if ( len( potentialGuid ) < 32 ) {
+      return false;
+    }
+
+    if ( isValid( "guid", potentialGuid ) ) {
       return true;
     }
 
-    return isValid( "guid", formatAsGUID( text ) );
+    return isValid( "guid", formatAsGUID( potentialGuid ) );
   }
 
   /**
@@ -1201,10 +1227,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   private array function sortCommands( required array commands ) {
-    var remCommands = [];
-    var addCommands = [];
-    var setCommands = [];
-    var result = [];
+    var remCommands = [ ];
+    var addCommands = [ ];
+    var setCommands = [ ];
+    var result = [ ];
 
     for ( var command in commands ) {
       var keyword = left( command, 3 );

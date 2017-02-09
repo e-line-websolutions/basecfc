@@ -362,6 +362,36 @@ component extends="testbox.system.BaseSpec" {
           .toBe( third );
       });
 
+      it ( "Expects remove to work", function () {
+        var multiple_1 = entityNew( "multiple" );
+        var multiple_2 = entityNew( "multiple" );
+        entitySave( multiple_1 );
+        entitySave( multiple_2 );
+
+        transaction {
+          obj.save(
+            {
+              "name" = "toManyUpdateTest",
+              "multiples" = [ multiple_1, multiple_2 ]
+            }
+          );
+        }
+
+        transaction {
+          obj.save(
+            {
+              "name" = "toManyUpdateTest",
+              "remove_multiples" = multiple_1
+            }
+          );
+        }
+
+        var result = obj.getMultiples();
+
+        expect( result )
+          .toHaveLength( 1 );
+      } );
+
       it ( "Expects update multiple items to not remove old items", function () {
         var multiple_1 = entityNew( "multiple" );
         var multiple_2 = entityNew( "multiple" );
