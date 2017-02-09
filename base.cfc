@@ -48,7 +48,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       "debug" = false,
       "entities" = { },
       "test" = [ ],
-      "id" = formatAsGUID( createUUID( )),
+      "id" = formatAsGUID( createUUID( ) ),
       "meta" = getMetaData( ),
       "sanitizeDataTypes" = [
         "date",
@@ -103,7 +103,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance.entityName = getEntityName( );
     variables.instance.properties = getInheritedProperties( );
     variables.instance.defaultFields = "log,id,fieldnames,submitbutton,#instance.entityName#id";
-    // variables.instance.debug = true;
 
     if ( (
         !structKeyExists( instance.properties, "name" ) ||
@@ -156,10 +155,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     if ( depth == 0 ) {
       request.basecfc = {
-        "timers" = {},
+        "timers" = { },
         "instructionsOrder" = { },
         "queuedInstructions" = { },
-        "queuedObjects" = { "#getId()#" = this },
+        "queuedObjects" = { "#getId( )#" = this },
         "ormSession" = ormGetSession( )
       };
 
@@ -210,7 +209,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( instance.debug ) {
-      var debugid = formatAsGUID( createUUID( ));
+      var debugid = formatAsGUID( createUUID( ) );
       var collapse = "document.getElementById('#debugid#').style.display=(document.getElementById('#debugid#').style.display==''?'none':'');";
       var display = ' style="display:none;"';
 
@@ -239,7 +238,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         display = '';
       }
 
-      writeOutput( '
+      writeOutput(
+        '
         <div class="call">
           <h2 onclick="#collapse#">#depth#:#instance.entityName#:#getID( )#</h2>
           <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
@@ -247,9 +247,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               <th colspan="2">Name: "#getName( )#"</th>
             </tr>
             <tr>
-              <td colspan="2">Prep time: #getTickCount()-basecfctimer#ms</td>
+              <td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td>
             </tr>
-      ' );
+      '
+      );
     }
 
     // This object can handle non-existing fields, so lets add those to the properties struct.
@@ -257,7 +258,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var formDataKeys = structKeyArray( formData );
       for ( var key in formDataKeys ) {
         if ( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( instance.defaultFields, key ) ) {
-          structInsert( inheritedProperties, key, { "name" = key, "jsonData" = true }, true );
+          structInsert(
+            inheritedProperties,
+            key,
+            {
+              "name" = key,
+              "jsonData" = true
+            },
+            true
+          );
         }
       }
     }
@@ -268,7 +277,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // SAVE VALUES PASSED VIA FORM
     for ( var key in sortedPropertyKeys ) {
-      var propTimer = getTickCount();
+      var propTimer = getTickCount( );
       var property = inheritedProperties[ key ];
 
       savecontent variable="local.debugoutput" {
@@ -420,7 +429,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 for ( var nestedData in workData ) {
                   var propertyEntityName = property.entityName;
 
-                  if( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
+                  if ( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
                     propertyEntityName = nestedData[ "__subclass" ];
                   }
 
@@ -499,7 +508,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 if ( structKeyExists( property, "cfc" ) ) {
                   var propertyEntityName = property.entityName;
 
-                  if( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
+                  if ( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
                     propertyEntityName = nestedData[ "__subclass" ];
                   }
 
@@ -511,19 +520,19 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                       skipToNextPropery = true;
                     }
 
-                    if( !skipToNextPropery ) {
+                    if ( !skipToNextPropery ) {
                       queueInstruction( this, fn, objectToLink );
 
                       var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
 
-                      if( !skipToNextPropery ) {
+                      if ( !skipToNextPropery ) {
                         var updateStruct = parseUpdateStruct( nestedData );
 
                         if ( !structCount( updateStruct ) ) {
                           skipToNextPropery = true;
                         }
 
-                        if( !skipToNextPropery ) {
+                        if ( !skipToNextPropery ) {
                           if ( !objectToLink.isNew( ) ) {
                             updateStruct[ "#propertyEntityName#id" ] = objectToLink.getID( );
                           }
@@ -538,13 +547,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                           nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
                           valueToLog = nestedData.getName( );
-                        } else if( instance.debug ) {
+                        } else if ( instance.debug ) {
                           writeOutput( "nothing to update" );
                         }
-                      } else if( instance.debug ) {
+                      } else if ( instance.debug ) {
                         writeOutput( "already in object" );
                       }
-                    } else if( instance.debug ) {
+                    } else if ( instance.debug ) {
                       writeOutput( "already queued" );
                     }
                   } else {
@@ -609,7 +618,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                       } else if ( dataType == "float" ) {
                         nestedData = javaCast( "float", val( nestedData ) );
                       } else if ( listFindNoCase( "timestamp,date,datetime", dataType ) ) {
-                        if( isDate( nestedData ) ) {
+                        if ( isDate( nestedData ) ) {
                           nestedData = createODBCDateTime( nestedData );
                         } else {
                           throw( "Invalid date/time", "basecfc.save", nestedData );
@@ -623,7 +632,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
                 }
 
-                if( !skipToNextPropery ) {
+                if ( !skipToNextPropery ) {
                   // remove data if nestedData is empty
                   if ( isNull( nestedData ) ) {
                     queueInstruction( this, fn, "null" );
@@ -663,17 +672,19 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( instance.debug && len( trim( debugoutput ) ) ) {
-        var colID = formatAsGUID( createUuid( ));
+        var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
-        writeOutput( '
+        writeOutput(
+          '
           <tr>
             <th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th>
-            <td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount() - propTimer#ms</td>
+            <td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount( ) - propTimer#ms</td>
           </tr>
-        ' );
+        '
+        );
       }
 
-      if( structKeyExists( local, "updateStruct" ) ) {
+      if ( structKeyExists( local, "updateStruct" ) ) {
         structDelete( local, "updateStruct" );
       }
     }
@@ -692,7 +703,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var logAction = isNew( ) ? "created" : "changed";
         var logEntry = entityNew( "logentry" );
         var logResult = logEntry.enterIntoLog( logAction, savedState, this );
-        writeLog( text = "Added log entry for #getName()# (#logResult.getId()#).", file = request.appName );
+        writeLog( text = "Added log entry for #getName( )# (#logResult.getId( )#).", file = request.appName );
         request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
       }
     }
@@ -764,11 +775,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         for ( var key in sortKey ) {
           var currentField = tempProperties[ key ].name;
 
-          if( structKeyExists( variables, currentField ) ) {
-            if( isObject( variables[ currentField ] ) ) {
-              arrayAppend( result, variables[ currentField ].getName() );
+          if ( structKeyExists( variables, currentField ) ) {
+            if ( isObject( variables[ currentField ] ) ) {
+              arrayAppend( result, variables[ currentField ].getName( ) );
               continue;
-            } else if( isSimpleValue( variables[ currentField ] ) && len( variables[ currentField ] ) ) {
+            } else if ( isSimpleValue( variables[ currentField ] ) && len( variables[ currentField ] ) ) {
               arrayAppend( result, variables[ currentField ] );
               continue;
             }
@@ -815,8 +826,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         for ( var i = 1; i <= numberOfProperties; i++ ) {
           var property = md.properties[ i ];
 
-          if( !structKeyExists( result, property.name ) ) {
-            result[ property.name ] = {};
+          if ( !structKeyExists( result, property.name ) ) {
+            result[ property.name ] = { };
           }
 
           if ( structKeyExists( property, "cfc" ) ) {
@@ -998,14 +1009,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return instance;
   }
 
-  public array function getSubClasses() {
+  public array function getSubClasses( ) {
     var classMetaData = instance.sessionFactory.getClassMetadata( instance.entityName );
 
-    if( classMetaData.hasSubclasses() ) {
-      return classMetaData.getSubclassClosure();
+    if ( classMetaData.hasSubclasses( ) ) {
+      return classMetaData.getSubclassClosure( );
     }
 
-    return [];
+    return [ ];
+  }
+
+  public void function enableDebug( ) {
+    variables.instance.debug = true;
   }
 
   // Private functions:
@@ -1088,7 +1103,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * Processes the queued instructions in one batch
     */
-  private void function processQueue() {
+  private void function processQueue( ) {
     if ( instance.debug ) {
       var instructionTimers = 0;
       basecfcLog( text = "~~ start processing queue for #instance.meta.name# ~~", file = request.appName );
@@ -1101,9 +1116,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var instructionOrder = request.basecfc.instructionsOrder[ objectid ];
       var object = request.basecfc.queuedObjects[ objectid ];
       var objectInstructions = queuedInstructions[ objectid ];
-      var sortedCommands = structKeyArray( instructionOrder );
-
-      arraySort( sortedCommands, "textNoCase", "asc" );
+      var sortedCommands = sortCommands( structKeyArray( instructionOrder ) );
 
       // per command
       for ( var command in sortedCommands ) {
@@ -1113,8 +1126,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         for ( var valueKey in values ) {
           var value = objectInstructions[ command ][ valueKey ];
           var finalInstruction = "object." & command & "(" & ( isSimpleValue( value ) && value == "null" ? "javaCast('null',0)" : "value" ) & ")";
-          var logValue = isSimpleValue( value ) ? value : ( isObject( value ) ? value.getName() : '' );
-          var logMessage = "called: [#objectid#] #object.getEntityName()#.#command#(#logValue#)";
+          var logValue = isSimpleValue( value ) ? value : ( isObject( value ) ? value.getName( ) : '' );
+          var logMessage = "called: [#objectid#] #object.getEntityName( )#.#command#(#logValue#)";
 
           if ( instance.debug ) {
             var instructionTimer = getTickCount( );
@@ -1164,7 +1177,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 "datatype" = "",
                 "message" = errorMessage,
                 "detail" = "",
-                "errortype" = "validationServiceError.#err.getProperty()#"
+                "errortype" = "validationServiceError.#err.getProperty( )#"
               }
             );
 
@@ -1176,15 +1189,38 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    for( var objectId in structKeyArray( request.basecfc.queuedObjects ) ) {
+    for ( var objectId in structKeyArray( request.basecfc.queuedObjects ) ) {
       var object = request.basecfc.queuedObjects[ objectId ];
       entitySave( object );
-      basecfcLog( text = "Saving #object.getEntityName()# - #object.getName()# - #object.getId()#", file = request.appName );
+      basecfcLog( text = "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#", file = request.appName );
     }
 
     if ( instance.debug ) {
       basecfcLog( text = "~~ finished queue in " & instructionTimers & "ms. ~~", file = request.appName );
     }
+  }
+
+  private array function sortCommands( required array commands ) {
+    var remCommands = [];
+    var addCommands = [];
+    var setCommands = [];
+    var result = [];
+
+    for ( var command in commands ) {
+      var keyword = left( command, 3 );
+      var commandArray = keyword & "Commands";
+      arrayAppend( local[ commandArray ], command );
+    }
+
+    arraySort( remCommands, "text" );
+    arraySort( addCommands, "text" );
+    arraySort( setCommands, "text" );
+
+    result.addAll( remCommands );
+    result.addAll( addCommands );
+    result.addAll( setCommands );
+
+    return result;
   }
 
   /**
@@ -1202,7 +1238,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var entityID = entity.getID( );
 
-    if( !structKeyExists( request.basecfc.queuedObjects, entityID )) {
+    if ( !structKeyExists( request.basecfc.queuedObjects, entityID ) ) {
       request.basecfc.queuedObjects[ entityID ] = entity;
     }
 
@@ -1295,8 +1331,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           basecfcLog( text = "Creating new #entityName#.", file = request.appName );
         }
         var objectToLink = entityNew( entityName );
-        var objectId = objectToLink.getId();
-        if( !structKeyExists( request.basecfc.queuedObjects, objectId )) {
+        var objectId = objectToLink.getId( );
+        if ( !structKeyExists( request.basecfc.queuedObjects, objectId ) ) {
           request.basecfc.queuedObjects[ objectId ] = objectToLink;
         }
       }
@@ -1402,8 +1438,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return (
       !structKeyExists( formData, property.name ) &&
       !structKeyExists( formData, "set_#property.name#" ) &&
-      !( structKeyExists( formData, "add_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists( formData, "add_#property.singularName#" ))) &&
-      !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists( formData, "remove_#property.singularName#" )))
+      !( structKeyExists( formData, "add_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
+        formData,
+        "add_#property.singularName#"
+      ) ) ) &&
+      !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
+        formData,
+        "remove_#property.singularName#"
+      ) ) )
     );
   }
 
