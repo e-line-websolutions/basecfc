@@ -25,14 +25,28 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
+  property name="sanitizeDataTypes" type="array" persistent=false;
+  property name="instance" type="struct" persistent=false;
 
-  variables.version = "3.5";
+  this.version = "3.5";
+
+  variables.sanitizeDataTypes = [
+    "date",
+    "datetime",
+    "double",
+    "float",
+    "int",
+    "integer",
+    "numeric",
+    "percentage",
+    "timestamp"
+  ];
 
   param request.appName="basecfc";
 
   /**
     * The constructor needs to be called in order to populate the instance
-    * variables (like instance.meta which is used by the other methods)
+    * variables (like variables.instance.meta which is used by the other methods)
     */
   public component function init( ) {
     param variables.name="";
@@ -40,27 +54,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.sortorder=0;
 
     variables.instance = {
+      "validationReport" = [ ],
+      "sanitationReport" = [ ],
       "sessionFactory" = ORMGetSessionFactory( ),
-      "config" = {
-        "log" = false,
-        "disableSecurity" = true
-      },
+      "config" = { "log" = false, "disableSecurity" = true },
       "debug" = false,
       "entities" = { },
       "test" = [ ],
       "id" = formatAsGUID( createUUID( ) ),
-      "meta" = getMetaData( ),
-      "sanitizeDataTypes" = [
-        "date",
-        "datetime",
-        "double",
-        "float",
-        "int",
-        "integer",
-        "numeric",
-        "percentage",
-        "timestamp"
-      ]
+      "meta" = getMetaData( )
     };
 
     if ( structKeyExists( url, "reload" ) ) {
@@ -74,7 +76,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var cachedEntities = cacheGet( "#request.appName#-allEntities" );
       if ( isNull( cachedEntities ) ) {
         var cachedEntities = { };
-        var allEntities = instance.sessionFactory.getAllClassMetadata( );
+        var allEntities = variables.instance.sessionFactory.getAllClassMetadata( );
         for ( var key in allEntities ) {
           var entity = allEntities[ key ];
           structInsert(
@@ -102,13 +104,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance.className = getClassName( );
     variables.instance.entityName = getEntityName( );
     variables.instance.properties = getInheritedProperties( );
-    variables.instance.defaultFields = "log,id,fieldnames,submitbutton,#instance.entityName#id";
+    variables.instance.defaultFields = "log,id,fieldnames,submitbutton,#variables.instance.entityName#id";
 
     if ( (
-        !structKeyExists( instance.properties, "name" ) ||
-        !structKeyExists( instance.properties, "deleted" ) ||
-        !structKeyExists( instance.properties, "sortorder" )
-      ) && instance.className != "basecfc.base" ) {
+        !structKeyExists( variables.instance.properties, "name" ) ||
+        !structKeyExists( variables.instance.properties, "deleted" ) ||
+        !structKeyExists( variables.instance.properties, "sortorder" )
+      ) && variables.instance.className != "basecfc.base" ) {
       throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
     }
 
@@ -126,7 +128,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var basecfctimer = getTickCount( );
 
     // objects using .save() must be initialised using the constructor
-    if ( not structKeyExists( variables, "instance" ) ) {
+    if ( !structKeyExists( variables, "instance" ) ) {
       var logMessage = "Basecfc not initialised";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.global", message = logMessage );
@@ -139,8 +141,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( type = "basecfc.global", message = logMessage );
     }
 
-    var canBeLogged = ( instance.config.log && isInstanceOf( this, "#instance.config.root#.model.logged" ) );
-    var inheritedProperties = instance.properties;
+    var canBeLogged = ( variables.instance.config.log && isInstanceOf( this, "#variables.instance.config.root#.model.logged" ) );
+    var inheritedProperties = variables.instance.properties;
     var logFields = "createcontact,createdate,createip,updatecontact,updatedate,updateip";
     var savedState = { };
     var logFieldsAsArray = listToArray( logFields );
@@ -174,21 +176,21 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         formData.updateDate = now( );
         formData.updateIP = cgi.remote_host;
 
-        if ( !instance.config.disableSecurity ) {
+        if ( !variables.instance.config.disableSecurity ) {
           if ( !hasCreateContact( ) ) {
             if ( !structKeyExists( formData, "createContact" ) &&
                 structKeyExists( instance, "auth" ) &&
-                structKeyExists( instance.auth, "userID" ) &&
-                isValidGUID( instance.auth.userID ) ) {
-              formData.createContact = instance.auth.userID;
+                structKeyExists( variables.instance.auth, "userID" ) &&
+                isValidGUID( variables.instance.auth.userID ) ) {
+              formData.createContact = variables.instance.auth.userID;
             }
           }
 
           if ( !structKeyExists( formData, "updateContact" ) &&
               structKeyExists( instance, "auth" ) &&
-              structKeyExists( instance.auth, "userID" ) &&
-                isValidGUID( instance.auth.userID ) ) {
-            formData.updateContact = instance.auth.userID;
+              structKeyExists( variables.instance.auth, "userID" ) &&
+                isValidGUID( variables.instance.auth.userID ) ) {
+            formData.updateContact = variables.instance.auth.userID;
           }
         }
       }
@@ -208,7 +210,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var sanitationInstance = request.basecfc.sanitationService;
     }
 
-    if ( instance.debug ) {
+    if ( variables.instance.debug ) {
       var debugid = formatAsGUID( createUUID( ) );
       var collapse = "document.getElementById('#debugid#').style.display=(document.getElementById('#debugid#').style.display==''?'none':'');";
       var display = ' style="display:none;"';
@@ -241,7 +243,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       writeOutput(
         '
         <div class="call">
-          <h2 onclick="#collapse#">#depth#:#instance.entityName#:#getID( )#</h2>
+          <h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2>
           <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
             <tr>
               <th colspan="2">Name: "#getName( )#"</th>
@@ -254,10 +256,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     // This object can handle non-existing fields, so lets add those to the properties struct.
-    if ( arrayLen( structFindValue( instance.meta, "onMissingMethod" ) ) ) {
+    if ( arrayLen( structFindValue( variables.instance.meta, "onMissingMethod" ) ) ) {
       var formDataKeys = structKeyArray( formData );
       for ( var key in formDataKeys ) {
-        if ( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( instance.defaultFields, key ) ) {
+        if ( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( variables.instance.defaultFields, key ) ) {
           structInsert(
             inheritedProperties,
             key,
@@ -285,7 +287,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var valueToLog = "";
 
           if ( structKeyExists( property, "cfc" ) ) {
-            var reverseCFCLookup = listFindNoCase( logFields, key ) ? "#instance.config.root#.model.logged" : instance.className;
+            var reverseCFCLookup = listFindNoCase( logFields, key ) ? "#variables.instance.config.root#.model.logged" : variables.instance.className;
           }
 
           param string property.fieldtype="string";
@@ -338,7 +340,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     }
                     var objectsToOverride = sqlQuery.list( );
                   } else {
-                    var sql = "SELECT b FROM #instance.entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
+                    var sql = "SELECT b FROM #variables.instance.entityName# a JOIN a.#property.name# b WHERE a.id = :id ";
                     var params = { "id" = getID( ) };
                     if ( structKeyExists( formData, "remove_#property.name#" ) ) {
                       var entitiesToRemove = formData[ "remove_#property.name#" ];
@@ -490,7 +492,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                     updateStruct[ reverseField ] = this;
 
-                    if ( instance.debug ) {
+                    if ( variables.instance.debug ) {
                       basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
                     }
 
@@ -561,7 +563,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                           updateStruct[ "add_#reverseField#" ] = this;
 
-                          if ( instance.debug ) {
+                          if ( variables.instance.debug ) {
                             basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
                           }
 
@@ -569,13 +571,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                           nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
                           valueToLog = nestedData.getName( );
-                        } else if ( instance.debug ) {
+                        } else if ( variables.instance.debug ) {
                           writeOutput( "nothing to update" );
                         }
-                      } else if ( instance.debug ) {
+                      } else if ( variables.instance.debug ) {
                         writeOutput( "already in object" );
                       }
-                    } else if ( instance.debug ) {
+                    } else if ( variables.instance.debug ) {
                       writeOutput( "already queued" );
                     }
                   } else {
@@ -598,7 +600,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     } catch ( any e ) {
                     }
 
-                    if ( useSanitation && arrayFindNoCase( instance.sanitizeDataTypes, dataType ) ) {
+                    if ( useSanitation && arrayFindNoCase( variables.sanitizeDataTypes, dataType ) ) {
                       var dirtyValue = duplicate( nestedData );
 
                       nestedData = sanitationInstance.sanitize( nestedData, dataType );
@@ -606,29 +608,23 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                       var sanitationFailed = sanitationInstance.hasErrors( );
 
                       if ( sanitationFailed ) {
-                        var sanitationReport = sanitationInstance.getReport( );
                         var sanitationError = sanitationInstance.getError( );
 
-                        arrayAppend(
-                          sanitationReport,
-                          {
-                            "type" = "sanitation",
-                            "object" = instance.className,
-                            "field" = property.name,
-                            "value" = nestedData,
-                            "datatype" = dataType,
-                            "message" = sanitationError.message,
-                            "detail" = sanitationError.detail,
-                            "errortype" = sanitationError.type
-                          }
-                        );
-
-                        sanitationInstance.setReport( sanitationReport );
+                        arrayAppend( variables.instance.sanitationReport, {
+                          "type" = "sanitation",
+                          "object" = variables.instance.className,
+                          "field" = property.name,
+                          "value" = nestedData,
+                          "datatype" = dataType,
+                          "message" = sanitationError.message,
+                          "detail" = sanitationError.detail,
+                          "errortype" = sanitationError.type
+                        } );
 
                         basecfcLog( text = "sanitation of '#dirtyValue#' to '#dataType#' FAILED", file = request.appName );
 
                         skipToNextPropery = true; // break off trying to set this value, as it won't work anyway.
-                      } else if ( instance.debug ) {
+                      } else if ( variables.instance.debug ) {
                         basecfcLog( text = "value '#dirtyValue#' sanitized to '#nestedData#'", file = request.appName );
                       }
                     }
@@ -659,13 +655,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   if ( isNull( nestedData ) ) {
                     queueInstruction( this, fn, "null" );
 
-                    if ( instance.debug ) {
+                    if ( variables.instance.debug ) {
                       writeOutput( '<p>#fn#( null )</p>' );
                     }
                   }
 
                   // debug output to show which function call was queued:
-                  if ( instance.debug && !isNull( nestedData ) ) {
+                  if ( variables.instance.debug && !isNull( nestedData ) ) {
                     var dbugAttr = nestedData.toString( );
 
                     if ( structKeyExists( local, "updateStruct" ) ) {
@@ -693,7 +689,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
       }
 
-      if ( instance.debug && len( trim( debugoutput ) ) ) {
+      if ( variables.instance.debug && len( trim( debugoutput ) ) ) {
         var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
         writeOutput(
@@ -711,7 +707,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    if ( instance.debug ) {
+    if ( variables.instance.debug ) {
       writeOutput( '</table>' );
       writeOutput( getTickCount( ) - basecfctimer & "ms<br />" );
       writeOutput( '</div>' );
@@ -721,7 +717,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if ( depth == 0 ) {
       processQueue( );
 
-      if ( canBeLogged && instance.entityName != "logentry" ) {
+      if ( canBeLogged && variables.instance.entityName != "logentry" ) {
         var logAction = isNew( ) ? "created" : "changed";
         var logEntry = entityNew( "logentry" );
         var logResult = logEntry.enterIntoLog( logAction, savedState, this );
@@ -738,13 +734,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * the full cfc path
     */
-  public string function getClassName( string filePath = instance.meta.path ) {
-    var result = instance.meta.fullname;
+  public string function getClassName( string filePath = variables.instance.meta.path ) {
+    var result = variables.instance.meta.fullname;
     var sep = server.os.name contains "Windows" ? "\" : "/";
     var start = findNoCase( "#sep#model#sep#", filePath );
 
     if ( start > 0 ) {
-      result = instance.config.root & replace( replace( mid( filePath, start, len( filePath ) ), ".cfc", "", "one" ), sep, ".", "all" );
+      result = variables.instance.config.root & replace( replace( mid( filePath, start, len( filePath ) ), ".cfc", "", "one" ), sep, ".", "all" );
     }
 
     return result;
@@ -753,7 +749,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * the entity name (as per CFML ORM standard)
     */
-  public string function getEntityName( string className = instance.className ) {
+  public string function getEntityName( string className = variables.instance.className ) {
     var basicEntityName = listLast( className, '.' );
     if ( structKeyExists( request.allEntities, basicEntityName ) ) {
       return request.allEntities[ basicEntityName ].name;
@@ -764,7 +760,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * the database table name (as per CFML ORM standard)
     */
-  public string function getTableName( string className = instance.className ) {
+  public string function getTableName( string className = variables.instance.className ) {
     var basicEntityName = listLast( className, "." );
     if ( structKeyExists( request.allEntities, basicEntityName ) ) {
       return request.allEntities[ basicEntityName ].table;
@@ -781,7 +777,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     switch ( type ) {
       case "inlineedit-line":
-        var propertiesInInline = structFindKey( instance.properties, "ininline", "all" );
+        var propertiesInInline = structFindKey( variables.instance.properties, "ininline", "all" );
         var tempProperties = { };
 
         for ( var property in propertiesInInline ) {
@@ -824,21 +820,21 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Overrid default getter to generate a GUID to identify this object with.
     */
   public string function getID( ) {
-    return isNew( ) ? instance.id : id;
+    return isNew( ) ? variables.instance.id : id;
   }
 
   /**
     * a struct containing this objects and its ancestors properties
     */
   public struct function getInheritedProperties( ) {
-    var cachedPropertiesKey = "#request.appName#-#instance.className#-props";
+    var cachedPropertiesKey = "#request.appName#-#variables.instance.className#-props";
     var cachedProperties = cacheGet( cachedPropertiesKey );
 
     if ( !isNull( cachedProperties ) ) {
       return cachedProperties;
     }
 
-    var md = instance.meta;
+    var md = variables.instance.meta;
     var result = { };
 
     do {
@@ -872,7 +868,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Find the corresponding field in the joined object (using the FKColumn)
     */
   public string function getReverseField( required string cfc, required string fkColumn, boolean singular = true ) {
-    var propertiesWithCFC = structFindKey( instance.properties, "cfc", "all" );
+    var propertiesWithCFC = structFindKey( variables.instance.properties, "cfc", "all" );
     var field = 0;
     var fieldFound = 0;
 
@@ -950,7 +946,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * true if propertyToCheck is found in this object or its ancestors
     */
   public boolean function propertyExists( required string propertyToCheck ) {
-    return structKeyExists( instance.properties, propertyToCheck );
+    return structKeyExists( variables.instance.properties, propertyToCheck );
   }
 
   /**
@@ -1032,7 +1028,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   public array function getSubClasses( ) {
-    var classMetaData = instance.sessionFactory.getClassMetadata( instance.entityName );
+    var classMetaData = variables.instance.sessionFactory.getClassMetadata( variables.instance.entityName );
 
     if ( classMetaData.hasSubclasses( ) ) {
       return classMetaData.getSubclassClosure( );
@@ -1045,10 +1041,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance.debug = true;
   }
 
+  public array function getValidationReport( ) {
+    return variables.instance.validationReport;
+  }
+
+  public array function getSanitationReport( ) {
+    return variables.instance.sanitationReport;
+  }
+
   // Private functions:
 
   /**
-    * Compares two component instances wither by ID or by using Java's equals()
+    * Compares two component instances by ID or by using Java's equals()
     */
   private boolean function compareObjects( required component objA, required component objB ) {
     var idA = objA.getID( );
@@ -1130,9 +1134,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Processes the queued instructions in one batch
     */
   private void function processQueue( ) {
-    if ( instance.debug ) {
+    if ( variables.instance.debug ) {
       var instructionTimers = 0;
-      basecfcLog( text = "~~ start processing queue for #instance.meta.name# ~~", file = request.appName );
+      basecfcLog( text = "~~ start processing queue for #variables.instance.meta.name# ~~", file = request.appName );
     }
 
     var queuedInstructions = request.basecfc.queuedInstructions;
@@ -1153,9 +1157,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var value = objectInstructions[ command ][ valueKey ];
           var finalInstruction = "object." & command & "(" & ( isSimpleValue( value ) && value == "null" ? "javaCast('null',0)" : "value" ) & ")";
           var logValue = isSimpleValue( value ) ? value : ( isObject( value ) ? value.getName( ) : '' );
-          var logMessage = "called: [#objectid#] #object.getEntityName( )#.#command#(#logValue#)";
+          var logMessage = "called: [#objectid#] #object.getEntityName( )#.#command#";
+          if ( !isNull( logValue ) ) {
+            logMessage &= "(#logValue#)";
+          }
 
-          if ( instance.debug ) {
+          if ( variables.instance.debug ) {
             var instructionTimer = getTickCount( );
           }
 
@@ -1166,7 +1173,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             rethrow;
           }
 
-          if ( instance.debug ) {
+          if ( variables.instance.debug ) {
             instructionTimer = getTickCount( ) - instructionTimer;
             basecfcLog( text = logMessage & " (t=#instructionTimer#)", file = request.appName );
             instructionTimers += instructionTimer;
@@ -1178,7 +1185,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var validated = request.basecfc.validationService.validate( object );
 
         if ( validated.hasErrors( ) ) {
-          var validationReport = request.basecfc.validationService.getReport( );
           var errorsInValidation = validated.getErrors( );
 
           basecfcLog( text = "#object.getEntityName( )# has #arrayLen( errorsInValidation )# error(s).", file = request.appName );
@@ -1193,24 +1199,19 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             }
             errorMessage &= " for #prop# in #obj#: #err.getMessage( )#";
 
-            arrayAppend(
-              validationReport,
-              {
-                "type" = "validation",
-                "object" = obj,
-                "field" = prop,
-                "value" = problemValue,
-                "datatype" = "",
-                "message" = errorMessage,
-                "detail" = "",
-                "errortype" = "validationServiceError.#err.getProperty( )#"
-              }
-            );
+            arrayAppend( variables.instance.validationReport, {
+              "type" = "validation",
+              "object" = obj,
+              "field" = prop,
+              "value" = problemValue,
+              "datatype" = "",
+              "message" = errorMessage,
+              "detail" = "",
+              "errortype" = "validationServiceError.#err.getProperty( )#"
+            } );
 
             basecfcLog( text = errorMessage, file = request.appName );
           }
-
-          request.basecfc.validationService.setReport( validationReport );
         }
       }
     }
@@ -1221,7 +1222,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( text = "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#", file = request.appName );
     }
 
-    if ( instance.debug ) {
+    if ( variables.instance.debug ) {
       basecfcLog( text = "~~ finished queue in " & instructionTimers & "ms. ~~", file = request.appName );
     }
   }
@@ -1353,7 +1354,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( isNull( objectToLink ) ) {
-        if ( instance.debug ) {
+        if ( variables.instance.debug ) {
           basecfcLog( text = "Creating new #entityName#.", file = request.appName );
         }
         var objectToLink = entityNew( entityName );
@@ -1371,7 +1372,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
       throw( type = "basecfc.toComponent", message = logMessage );
     } catch ( basecfc.toComponent e ) {
-      if ( instance.debug ) {
+      if ( variables.instance.debug ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1386,7 +1387,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var logMessage = "While creating object #entityName#, an unexpected error occured: #e.message# (#e.detail#)";
       basecfcLog( text = logMessage, type = "fatal", file = request.appName );
 
-      if ( instance.debug ) {
+      if ( variables.instance.debug ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1404,10 +1405,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
-  private void function basecfcLog( text, file = request.appName, type = "information" ) {
+  private void function basecfcLog( required string text, string file=request.appName, string type="information" ) {
     writeLog( text = text, file = file, type = type );
 
-    if ( instance.debug ) {
+    if ( variables.instance.debug ) {
       writeOutput( "<br />" & text );
     }
   }
@@ -1453,7 +1454,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   private boolean function isDefaultField( required struct property ) {
-    return listFindNoCase( instance.defaultFields, property.name );
+    return listFindNoCase( variables.instance.defaultFields, property.name );
   }
 
   private boolean function isEmptyText( required struct property, required struct formData ) {
