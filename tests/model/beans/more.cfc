@@ -3,5 +3,6 @@ component extends=basecfc.base persistent=true {
   property name="deleted" type="boolean" ORMType="boolean" default=false inapi=false;
   property name="sortorder" type="numeric" ORMType="integer" default=0;
 
-  property name="others" singularName="other" fieldtype="one-to-many" cfc="root.model.sub.other" fkColumn="moreotherid";
+  property name="tests" singularName="test" fieldtype="one-to-many" cfc="root.model.beans.test" fkColumn="moreid";
+  property name="deeper" fieldtype="many-to-one" cfc="root.model.beans.deeper" fkColumn="deeperid";
 }

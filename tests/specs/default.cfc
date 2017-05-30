@@ -68,60 +68,60 @@ component extends="testbox.system.BaseSpec" {
       it( "Expects getClassName() to return the full CFC name/path of the entity.", function() {
         expect( obj.getClassName())
           .toBeString()
-          .toBe( "root.model.test" )
+          .toBe( "root.model.beans.test" )
           .notToBe( "droid" );
 
         var other = entityNew( "other" );
 
         expect( other.getClassName())
           .toBeString()
-          .toBe( "root.model.sub.other" )
+          .toBe( "root.model.beans.sub.other" )
           .notToBe( "droid" );
       });
 
       it( "Expects getReverseField() to return the field linking two entities together.", function() {
         // test one-to-many
-        expect( obj.getReverseField( "root.model.multiple", "testid" ))
+        expect( obj.getReverseField( "root.model.beans.multiple", "testid" ))
           .toBeString()
           .toBe( "multiple" );
 
         // test many-to-one
-        expect( obj.getReverseField( "root.model.more", "moreid" ))
+        expect( obj.getReverseField( "root.model.beans.more", "moreid" ))
           .toBeString()
           .toBe( "more" );
 
         expect( function() {
-          obj.getReverseField( "root.model.more", "moreid" );
+          obj.getReverseField( "root.model.beans.more", "moreid" );
         }).notToThrow();
 
         expect( function() {
-          obj.getReverseField( "root.model.more", "notAnExistingFK" );
+          obj.getReverseField( "root.model.beans.more", "notAnExistingFK" );
         }).toThrow( type="basecfc.getReverseField", regex="no reverse field found" );
       });
 
       it( "Expects getReverseField() to work on sub folders.", function() {
         // root to sub folder (one-to-many)
-        expect( obj.getReverseField( "root.model.sub.other", "testid" ))
+        expect( obj.getReverseField( "root.model.beans.sub.other", "testid" ))
           .toBeString()
           .toBe( "entityInSubfolder" );
 
         // from sub folder to root (many-to-one)
         var other = entityNew( "other" );
 
-        expect( other.getReverseField( "root.model.test", "testid" ))
+        expect( other.getReverseField( "root.model.beans.test", "testid" ))
           .toBeString()
           .toBe( "test" );
       });
 
       it( "Expects getReverseField() to work with multiple FKs of the same name.", function() {
         // test another link to same entity, different fk
-        expect( obj.getReverseField( "root.model.more", "duplicateid" ))
+        expect( obj.getReverseField( "root.model.beans.more", "duplicateid" ))
           .toBeString()
           .toBe( "duplicate" )
           .notToBe( "more" );
 
         // test many-to-one
-        expect( obj.getReverseField( "root.model.more", "moreid" ))
+        expect( obj.getReverseField( "root.model.beans.more", "moreid" ))
           .toBeString()
           .toBe( "more" )
           .notToBe( "duplicate" );
@@ -142,7 +142,7 @@ component extends="testbox.system.BaseSpec" {
       it( "Expects save() to return the entity", function() {
         expect( obj.save())
           .toBeTypeOf( 'component' )
-          .toBeInstanceOf( 'root.model.test' );
+          .toBeInstanceOf( 'root.model.beans.test' );
       });
 
       it( "Expects save({name='test'}) to change name (a string) to 'test'", function() {
@@ -212,8 +212,8 @@ component extends="testbox.system.BaseSpec" {
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( other );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( other.getId() );
       });
 
       it( "Expects save({add_data=123}) to be able to add a one-to-many object using pk", function() {
@@ -231,8 +231,8 @@ component extends="testbox.system.BaseSpec" {
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( other );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( other.getId() );
       });
 
       it( "Expects save({add_data={id:123}}) to be able to add a one-to-many object using pk in struct", function() {
@@ -250,8 +250,8 @@ component extends="testbox.system.BaseSpec" {
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( other );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( other.getId() );
       });
 
       it( "Expects save({add_data='{id:123}'}) to be able to add a one-to-many object using pk in json", function() {
@@ -269,8 +269,8 @@ component extends="testbox.system.BaseSpec" {
           .toBeArray()
           .toHaveLength( 1 );
 
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( other );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( other.getId() );
       });
 
       it( "Expects save({add_data={name='test'}}) to be able to add a NEW one-to-many object", function() {
@@ -312,11 +312,11 @@ component extends="testbox.system.BaseSpec" {
           .toBeArray()
           .toHaveLength( 2 );
 
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( first );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( first.getId() );
 
-        expect( savedEntitiesInSubfolder[2] )
-          .toBe( second );
+        expect( savedEntitiesInSubfolder[2].getId() )
+          .toBe( second.getId() );
       });
 
       it( "Expects save({set_data=[data]}) to replace all items in a one-to-many relation", function() {
@@ -341,10 +341,10 @@ component extends="testbox.system.BaseSpec" {
         expect( savedEntitiesInSubfolder )
           .toBeArray()
           .toHaveLength( 2 );
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( first );
-        expect( savedEntitiesInSubfolder[2] )
-          .toBe( second );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( first.getId() );
+        expect( savedEntitiesInSubfolder[2].getId() )
+          .toBe( second.getId() );
 
         var overwriteData = {
           "entitiesInSubFolder" = [ third ]
@@ -358,8 +358,8 @@ component extends="testbox.system.BaseSpec" {
         expect( savedEntitiesInSubfolder )
           .toBeArray()
           .toHaveLength( 1 );
-        expect( savedEntitiesInSubfolder[1] )
-          .toBe( third );
+        expect( savedEntitiesInSubfolder[1].getId() )
+          .toBe( third.getId() );
       });
 
       it ( "Expects remove to work", function () {
@@ -492,8 +492,8 @@ component extends="testbox.system.BaseSpec" {
 
         var saved = obj.save( saveData );
 
-        expect( saved.getMore())
-          .toBe( more );
+        expect( saved.getMore().getId() )
+          .toBe( more.getId() );
       });
 
       it( "Expects save({data={id=123}}) to be able to add a many-to-one object using pk in struct", function() {
@@ -520,8 +520,8 @@ component extends="testbox.system.BaseSpec" {
 
         var saved = obj.save( saveData );
 
-        expect( saved.getMore())
-          .toBe( more );
+        expect( saved.getMore().getId())
+          .toBe( more.getId() );
       });
 
       it( "Expects save({data={name='test'}}) to be able to add a NEW many-to-one object", function() {
@@ -539,7 +539,7 @@ component extends="testbox.system.BaseSpec" {
 
         expect( more )
           .notToBeNULL()
-          .toBeInstanceOf( "root.model.more" )
+          .toBeInstanceOf( "root.model.beans.more" )
           .toHaveFunction( "getName" );
 
         expect( more.getName())
@@ -550,8 +550,8 @@ component extends="testbox.system.BaseSpec" {
         expect( linkBack )
           .toBeArray()
           .toHaveLength( 1 );
-        expect( linkBack[1] )
-          .toBe( saved );
+        expect( linkBack[1].getId() )
+          .toBe( saved.getId() );
 
         // also check one level deeper:
         var deeper = more.getDeeper();
@@ -563,8 +563,8 @@ component extends="testbox.system.BaseSpec" {
         expect( deeperLinkBack )
           .toBeArray()
           .toHaveLength( 1 );
-        expect( deeperLinkBack[1] )
-          .toBe( more );
+        expect( deeperLinkBack[1].getId() )
+          .toBe( more.getId() );
       });
     });
 
@@ -597,5 +597,18 @@ component extends="testbox.system.BaseSpec" {
           .toBeTypeOf( "component" );
       });
     });
+
+    describe( "Data type tests", function() {
+      it( "Expects baseCFC to work with Hyrule", function() {
+        var validator = new root.model.services.validation( );
+        var obj = entityNew( "validationtests" );
+
+        transaction {
+          obj.save( {
+            stringLength = "abcdefg" // <-- too long
+          }, 0, validator );
+        }
+      } );
+    } );
   }
 }
