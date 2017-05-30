@@ -25,11 +25,8 @@
 */
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
-  property name="sanitizeDataTypes" type="array" persistent=false;
-  property name="instance" type="struct" persistent=false;
 
-  this.version = "3.5";
-
+  variables.version = "3.5.3";
   variables.sanitizeDataTypes = [
     "date",
     "datetime",
@@ -41,8 +38,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     "percentage",
     "timestamp"
   ];
+  variables.logLevels = [ "information", "warning", "error", "fatal" ];
 
   param request.appName="basecfc";
+  param request.context.debug=false;
 
   /**
     * The constructor needs to be called in order to populate the instance
@@ -54,15 +53,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.sortorder=0;
 
     variables.instance = {
-      "validationReport" = [ ],
+      "entities" = { },
+      "id" = formatAsGUID( createUUID( ) ),
+      "meta" = getMetaData( ),
       "sanitationReport" = [ ],
       "sessionFactory" = ORMGetSessionFactory( ),
-      "config" = { "log" = false, "disableSecurity" = true },
-      "debug" = false,
-      "entities" = { },
-      "test" = [ ],
-      "id" = formatAsGUID( createUUID( ) ),
-      "meta" = getMetaData( )
+      "validationReport" = [ ]
     };
 
     if ( structKeyExists( url, "reload" ) ) {
@@ -79,14 +75,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var allEntities = variables.instance.sessionFactory.getAllClassMetadata( );
         for ( var key in allEntities ) {
           var entity = allEntities[ key ];
-          structInsert(
-            cachedEntities,
-            key,
-            {
-              "name" = entity.getEntityName( ),
-              "table" = entity.getTableName( )
-            }
-          );
+          cachedEntities[ key ] = {
+            "name" = entity.getEntityName( ),
+            "table" = entity.getTableName( )
+          };
         }
         cachePut( "#request.appName#-allEntities", cachedEntities );
       }
@@ -94,17 +86,32 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( structKeyExists( request, "context" ) && isStruct( request.context ) ) {
-      structAppend( variables.instance, request.context, true );
+      param request.context.config={};
+      param request.context.config.log=false;
+      param request.context.config.root="root";
+      param request.context.config.disableSecurity=true;
+      param request.context.config.logLevel="fatal";
+
+      var appendRcToInstance = {
+        "config" = {
+          "log" = request.context.config.log,
+          "root" = request.context.config.root,
+          "disableSecurity" = request.context.config.disableSecurity,
+          "logLevel" = request.context.config.logLevel
+        }
+      };
+
+      structAppend( variables.instance, appendRcToInstance, true );
     }
 
     structAppend( variables.instance, arguments, true );
 
     param variables.instance.config.root="root";
 
-    variables.instance.className = getClassName( );
-    variables.instance.entityName = getEntityName( );
-    variables.instance.properties = getInheritedProperties( );
-    variables.instance.defaultFields = "log,id,fieldnames,submitbutton,#variables.instance.entityName#id";
+    variables.instance[ "className" ] = getClassName( );
+    variables.instance[ "entityName" ] = getEntityName( );
+    variables.instance[ "properties" ] = getInheritedProperties( );
+    variables.instance[ "defaultFields" ] = "log,id,fieldnames,submitbutton,#variables.instance.entityName#id";
 
     if ( (
         !structKeyExists( variables.instance.properties, "name" ) ||
@@ -123,6 +130,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     *
     * @formData The data structure containing the new data to be saved
     * @depth Used to prevent inv. loops (don't keep going infinitely)
+    * @validationService provide a service that can validate objects
+    * @sanitationService provide a service that tries to make sense of slightly off data
     */
   public component function save( required struct formData = { }, numeric depth = 0, component validationService, component sanitationService ) {
     var basecfctimer = getTickCount( );
@@ -130,14 +139,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // objects using .save() must be initialised using the constructor
     if ( !structKeyExists( variables, "instance" ) ) {
       var logMessage = "Basecfc not initialised";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
       throw( type = "basecfc.global", message = logMessage );
     }
 
     // Hard coded depth limit
     if ( depth > 10 ) {
       var logMessage = "Infinite loop fail safe triggered";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
       throw( type = "basecfc.global", message = logMessage );
     }
 
@@ -210,7 +219,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var sanitationInstance = request.basecfc.sanitationService;
     }
 
-    if ( variables.instance.debug ) {
+    if ( request.context.debug ) {
       var debugid = formatAsGUID( createUUID( ) );
       var collapse = "document.getElementById('#debugid#').style.display=(document.getElementById('#debugid#').style.display==''?'none':'');";
       var display = ' style="display:none;"';
@@ -218,40 +227,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( !structKeyExists( request, "basecfc-save" ) ) {
         request[ "basecfc-save" ] = true;
         writeOutput(
-          '
-          <script src="http://helper.e-line.nl/prettify/run_prettify.js"></script>
-          <style>
-            td,th,h2{padding:3px;}
-            table,td,th{border:1px solid ##8091A4}
-            td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}
-            .basecfc-debug{width:900px;margin:0 auto}
-            .basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}
-            .basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}
-            .basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}
-            .result{color:red}
-          </style>
-        '
+          '<script src="http://helper.e-line.nl/prettify/run_prettify.js"></script><style>td,th,h2{padding:3px;}table,td,th{border:1px solid ##8091A4}td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}.basecfc-debug{width:900px;margin:0 auto}.basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}.basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}.basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}.result{color:red}</style>'
         );
       }
 
       if ( depth == 0 ) {
-        basecfcLog( text = "~~~ start basecfc.save() ~~~", file = request.appName );
+        basecfcLog( "~~~ start basecfc.save() ~~~" );
         writeOutput( '<div class="basecfc-debug">' );
         display = '';
       }
 
       writeOutput(
-        '
-        <div class="call">
-          <h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2>
-          <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
-            <tr>
-              <th colspan="2">Name: "#getName( )#"</th>
-            </tr>
-            <tr>
-              <td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td>
-            </tr>
-      '
+        '<div class="call"><h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2><table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#><tr><th colspan="2">Name: "#getName( )#"</th></tr><tr><td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td></tr>'
       );
     }
 
@@ -260,15 +247,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var formDataKeys = structKeyArray( formData );
       for ( var key in formDataKeys ) {
         if ( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( variables.instance.defaultFields, key ) ) {
-          structInsert(
-            inheritedProperties,
-            key,
-            {
-              "name" = key,
-              "jsonData" = true
-            },
-            true
-          );
+          inheritedProperties[ key ] = {
+            "name" = key,
+            "jsonData" = true
+          };
         }
       }
     }
@@ -372,7 +354,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     var objectsToOverride = ORMExecuteQuery( sql, params );
                   }
                 } catch ( any e ) {
-                  throw( type = "basecfc.global", message = "Error in query", detail = "#e.message# #e.detail# - SQL: #sql#, Params: #serializeJSON( sqlparams )#" );
+                  throw(
+                    type = "basecfc.global",
+                    message = "Error in query",
+                    detail = "#e.message# #e.detail# - SQL: #sql#, Params: #serializeJSON( sqlparams )#"
+                  );
                 }
 
                 for ( var objectToOverride in objectsToOverride ) {
@@ -410,7 +396,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   var entitiesToAdd = [ ];
 
                   for ( var toAdd in workData ) {
-                    if ( !isJSON( toAdd ) && !isObject( toAdd ) && !isSimpleValue( toAdd ) ) {
+                    if ( !isJSON( toAdd ) && !isObject( toAdd ) && !isSimpleValue( toAdd ) && !isStruct( toAdd ) ) {
                       toAdd = serializeJSON( toAdd );
                     }
 
@@ -492,8 +478,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                     updateStruct[ reverseField ] = this;
 
-                    if ( variables.instance.debug ) {
-                      basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
+                    if ( request.context.debug ) {
+                      basecfcLog( "called: #propertyEntityName#.save(#depth + 1#)" );
                     }
 
                     // Go down the rabbit hole:
@@ -563,21 +549,21 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                           updateStruct[ "add_#reverseField#" ] = this;
 
-                          if ( variables.instance.debug ) {
-                            basecfcLog( text = "called: #propertyEntityName#.save(#depth + 1#)", file = request.appName );
+                          if ( request.context.debug ) {
+                            basecfcLog( "called: #propertyEntityName#.save(#depth + 1#)" );
                           }
 
                           // Go down the rabbit hole:
                           nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
                           valueToLog = nestedData.getName( );
-                        } else if ( variables.instance.debug ) {
+                        } else if ( request.context.debug ) {
                           writeOutput( "nothing to update" );
                         }
-                      } else if ( variables.instance.debug ) {
+                      } else if ( request.context.debug ) {
                         writeOutput( "already in object" );
                       }
-                    } else if ( variables.instance.debug ) {
+                    } else if ( request.context.debug ) {
                       writeOutput( "already queued" );
                     }
                   } else {
@@ -600,7 +586,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     } catch ( any e ) {
                     }
 
-                    if ( useSanitation && arrayFindNoCase( variables.sanitizeDataTypes, dataType ) ) {
+                    if ( useSanitation && arrayFindNoCase( sanitizeDataTypes, dataType ) ) {
                       var dirtyValue = duplicate( nestedData );
 
                       nestedData = sanitationInstance.sanitize( nestedData, dataType );
@@ -621,11 +607,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                           "errortype" = sanitationError.type
                         } );
 
-                        basecfcLog( text = "sanitation of '#dirtyValue#' to '#dataType#' FAILED", file = request.appName );
+                        basecfcLog( "sanitation of '#dirtyValue#' to '#dataType#' FAILED", "error" );
 
                         skipToNextPropery = true; // break off trying to set this value, as it won't work anyway.
-                      } else if ( variables.instance.debug ) {
-                        basecfcLog( text = "value '#dirtyValue#' sanitized to '#nestedData#'", file = request.appName );
+                      } else if ( request.context.debug ) {
+                        basecfcLog( "value '#dirtyValue#' sanitized to '#nestedData#'" );
                       }
                     }
 
@@ -655,13 +641,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   if ( isNull( nestedData ) ) {
                     queueInstruction( this, fn, "null" );
 
-                    if ( variables.instance.debug ) {
+                    if ( request.context.debug ) {
                       writeOutput( '<p>#fn#( null )</p>' );
                     }
                   }
 
                   // debug output to show which function call was queued:
-                  if ( variables.instance.debug && !isNull( nestedData ) ) {
+                  if ( request.context.debug && !isNull( nestedData ) ) {
                     var dbugAttr = nestedData.toString( );
 
                     if ( structKeyExists( local, "updateStruct" ) ) {
@@ -689,16 +675,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
       }
 
-      if ( variables.instance.debug && len( trim( debugoutput ) ) ) {
+      if ( request.context.debug && len( trim( debugoutput ) ) ) {
         var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
         writeOutput(
-          '
-          <tr>
-            <th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th>
-            <td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount( ) - propTimer#ms</td>
-          </tr>
-        '
+          '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount( ) - propTimer#ms</td></tr>'
         );
       }
 
@@ -707,7 +688,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    if ( variables.instance.debug ) {
+    if ( request.context.debug ) {
       writeOutput( '</table>' );
       writeOutput( getTickCount( ) - basecfctimer & "ms<br />" );
       writeOutput( '</div>' );
@@ -721,7 +702,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var logAction = isNew( ) ? "created" : "changed";
         var logEntry = entityNew( "logentry" );
         var logResult = logEntry.enterIntoLog( logAction, savedState, this );
-        writeLog( text = "Added log entry for #getName( )# (#logResult.getId( )#).", file = request.appName );
+        basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
         request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
       }
     }
@@ -820,7 +801,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Overrid default getter to generate a GUID to identify this object with.
     */
   public string function getID( ) {
-    return isNew( ) ? variables.instance.id : id;
+    return isNew( ) ? variables.instance.id : variables.id;
   }
 
   /**
@@ -874,7 +855,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     if ( arrayIsEmpty( propertiesWithCFC ) ) {
       var logMessage = "getReverseField() ERROR: nothing linked to #cfc#.";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
 
       try {
         var expectedPropertyName = listLast( cfc, '.' );
@@ -929,7 +910,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     if ( fieldFound == 0 ) {
       var logMessage = "getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
       throw( type = "basecfc.getReverseField", message = logMessage );
     }
 
@@ -953,7 +934,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Determines whether this is a new object (without an ID) or an existing one
     */
   public boolean function isNew( ) {
-    return ( isNull( id ) || !isValidGUID( id ) );
+    return ( isNull( variables.id ) || !isValidGUID( variables.id ) );
   }
 
   /**
@@ -1024,7 +1005,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   public struct function getInstanceVariables( ) {
-    return instance;
+    var result = duplicate( variables.instance );
+    structDelete( result, "meta" );
+    structDelete( result, "sessionFactory" );
+
+    return result;
   }
 
   public array function getSubClasses( ) {
@@ -1038,7 +1023,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   public void function enableDebug( ) {
-    variables.instance.debug = true;
+    request.context.debug = true;
   }
 
   public array function getValidationReport( ) {
@@ -1134,18 +1119,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Processes the queued instructions in one batch
     */
   private void function processQueue( ) {
-    if ( variables.instance.debug ) {
+    if ( request.context.debug ) {
       var instructionTimers = 0;
-      basecfcLog( text = "~~ start processing queue for #variables.instance.meta.name# ~~", file = request.appName );
+      basecfcLog( "~~ start processing queue for #variables.instance.meta.name# ~~" );
     }
 
-    var queuedInstructions = request.basecfc.queuedInstructions;
+    var instructionsQueue = request.basecfc.queuedInstructions;
 
     // per object
-    for ( var objectid in queuedInstructions ) {
+    for ( var objectid in instructionsQueue ) {
       var instructionOrder = request.basecfc.instructionsOrder[ objectid ];
       var object = request.basecfc.queuedObjects[ objectid ];
-      var objectInstructions = queuedInstructions[ objectid ];
+      var objectInstructions = instructionsQueue[ objectid ];
       var sortedCommands = sortCommands( structKeyArray( instructionOrder ) );
 
       // per command
@@ -1158,24 +1143,25 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var finalInstruction = "object." & command & "(" & ( isSimpleValue( value ) && value == "null" ? "javaCast('null',0)" : "value" ) & ")";
           var logValue = isSimpleValue( value ) ? value : ( isObject( value ) ? value.getName( ) : '' );
           var logMessage = "called: [#objectid#] #object.getEntityName( )#.#command#";
+
           if ( !isNull( logValue ) ) {
             logMessage &= "(#logValue#)";
           }
 
-          if ( variables.instance.debug ) {
+          if ( request.context.debug ) {
             var instructionTimer = getTickCount( );
           }
 
           try {
             evaluate( finalInstruction );
           } catch ( any e ) {
-            basecfcLog( text = logMessage & " FAILED", file = request.appName, type = "fatal" );
+            basecfcLog( logMessage & " FAILED", "fatal" );
             rethrow;
           }
 
-          if ( variables.instance.debug ) {
+          if ( request.context.debug ) {
             instructionTimer = getTickCount( ) - instructionTimer;
-            basecfcLog( text = logMessage & " (t=#instructionTimer#)", file = request.appName );
+            basecfcLog( logMessage & " (t=#instructionTimer#)" );
             instructionTimers += instructionTimer;
           }
         }
@@ -1187,7 +1173,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         if ( validated.hasErrors( ) ) {
           var errorsInValidation = validated.getErrors( );
 
-          basecfcLog( text = "#object.getEntityName( )# has #arrayLen( errorsInValidation )# error(s).", file = request.appName );
+          basecfcLog( "#object.getEntityName( )# has #arrayLen( errorsInValidation )# error(s)." );
 
           for ( var err in errorsInValidation ) {
             var prop = err.getProperty( );
@@ -1210,20 +1196,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               "errortype" = "validationServiceError.#err.getProperty( )#"
             } );
 
-            basecfcLog( text = errorMessage, file = request.appName );
+            basecfcLog( errorMessage );
           }
         }
       }
     }
 
-    for ( var objectId in structKeyArray( request.basecfc.queuedObjects ) ) {
+    for ( var objectid in instructionsQueue ) {
       var object = request.basecfc.queuedObjects[ objectId ];
       entitySave( object );
-      basecfcLog( text = "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#", file = request.appName );
+      basecfcLog( "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#" );
     }
 
-    if ( variables.instance.debug ) {
-      basecfcLog( text = "~~ finished queue in " & instructionTimers & "ms. ~~", file = request.appName );
+    if ( request.context.debug ) {
+      basecfcLog( "~~ finished queue in " & instructionTimers & "ms. ~~" );
     }
   }
 
@@ -1231,7 +1217,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var remCommands = [ ];
     var addCommands = [ ];
     var setCommands = [ ];
-    var result = [ ];
 
     for ( var command in commands ) {
       var keyword = left( command, 3 );
@@ -1239,9 +1224,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       arrayAppend( local[ commandArray ], command );
     }
 
-    arraySort( remCommands, "text" );
-    arraySort( addCommands, "text" );
-    arraySort( setCommands, "text" );
+    arraySort( remCommands, "textnocase" );
+    arraySort( addCommands, "textnocase" );
+    arraySort( setCommands, "textnocase" );
+
+    var result = [ ];
 
     result.addAll( remCommands );
     result.addAll( addCommands );
@@ -1256,12 +1243,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * are taking place
     */
   private void function queueInstruction( required component entity, required string command, required any value ) {
-    param struct request.basecfc.instructionsOrder={
-    };
-    param struct request.basecfc.queuedInstructions={
-    };
-    param struct request.basecfc.queuedObjects={
-    };
+    param struct request.basecfc.instructionsOrder={};
+    param struct request.basecfc.queuedInstructions={};
+    param struct request.basecfc.queuedObjects={};
 
     var entityID = entity.getID( );
 
@@ -1286,7 +1270,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( isNull( valueID ) ) {
         var logMessage = "No ID set on entity #value.getName( )#";
-        basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+        basecfcLog( logMessage, "fatal" );
         throw( type = "basecfc.queueInstruction", message = logMessage );
       }
 
@@ -1354,8 +1338,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( isNull( objectToLink ) ) {
-        if ( variables.instance.debug ) {
-          basecfcLog( text = "Creating new #entityName#.", file = request.appName );
+        if ( request.context.debug ) {
+          basecfcLog( "Creating new #entityName#." );
         }
         var objectToLink = entityNew( entityName );
         var objectId = objectToLink.getId( );
@@ -1369,10 +1353,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       var logMessage = "Variable could not be translated to component of type #entityName#";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
       throw( type = "basecfc.toComponent", message = logMessage );
     } catch ( basecfc.toComponent e ) {
-      if ( variables.instance.debug ) {
+      if ( request.context.debug ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1385,9 +1369,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       rethrow;
     } catch ( any e ) {
       var logMessage = "While creating object #entityName#, an unexpected error occured: #e.message# (#e.detail#)";
-      basecfcLog( text = logMessage, type = "fatal", file = request.appName );
+      basecfcLog( logMessage, "fatal" );
 
-      if ( variables.instance.debug ) {
+      if ( request.context.debug ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1405,10 +1389,24 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
-  private void function basecfcLog( required string text, string file=request.appName, string type="information" ) {
-    writeLog( text = text, file = file, type = type );
+  public void function basecfcLog( required string text, string level = "information", string file = request.appName, string type = "" ) {
+    if ( len( type ) && arrayFindNoCase( variables.logLevels, type ) ) {
+      level = type;
+    }
 
-    if ( variables.instance.debug ) {
+    var requestedLevel = arrayFindNoCase( variables.logLevels, level );
+
+    if ( !requestedLevel ) {
+      return;
+    }
+
+    var levelThreshold = arrayFindNoCase( variables.logLevels, variables.instance.config.logLevel );
+
+    if ( requestedLevel >= levelThreshold ) {
+      writeLog( text = text, type = level, file = file );
+    }
+
+    if ( request.context.debug ) {
       writeOutput( "<br />" & text );
     }
   }
