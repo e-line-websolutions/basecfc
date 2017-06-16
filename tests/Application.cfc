@@ -1,12 +1,12 @@
 component {
   this.name = "basecfctests";
 
-  this.rootDir = getDirectoryFromPath( getCurrentTemplatePath( ) );
+  this.root = replace( getDirectoryFromPath( getCurrentTemplatePath( ) ), "\", "/", "all" );
+  this.basecfcRoot = listDeleteAt( this.root, listLen( this.root, "/" ), "/" );
 
   this.mappings = {
-    "/" = this.rootDir,
-    "/basecfc" = this.rootDir,
-    "/root" = this.rootDir,
+    "/root" = this.root,
+    "/basecfc" = this.basecfcRoot,
     "/testbox" = expandPath( "../../testbox" ),
     "/hyrule" = expandPath( "../../hyrule" )
   };
@@ -14,8 +14,8 @@ component {
   this.ORMEnabled = true;
   this.ORMSettings = {
     datasource = "basecfc",
-    DBCreate = "dropcreate",
-    CFCLocation = this.rootDir & "model/beans"
+    dbcreate = "dropcreate",
+    cfclocation = this.root & "/model/beans"
   };
 
   public void function onRequestStart( ) {

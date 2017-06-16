@@ -26,7 +26,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  variables.version = "3.5.3";
+  variables.version = "3.5.4";
   variables.sanitizeDataTypes = [
     "date",
     "datetime",
@@ -701,6 +701,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( canBeLogged && variables.instance.entityName != "logentry" ) {
         var logAction = isNew( ) ? "created" : "changed";
         var logEntry = entityNew( "logentry" );
+        entitySave( logEntry );
         var logResult = logEntry.enterIntoLog( logAction, savedState, this );
         basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
         request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
@@ -1215,8 +1216,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   private array function sortCommands( required array commands ) {
     var remCommands = [ ];
-    var addCommands = [ ];
     var setCommands = [ ];
+    var addCommands = [ ];
 
     for ( var command in commands ) {
       var keyword = left( command, 3 );
@@ -1225,14 +1226,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     arraySort( remCommands, "textnocase" );
-    arraySort( addCommands, "textnocase" );
     arraySort( setCommands, "textnocase" );
+    arraySort( addCommands, "textnocase" );
 
     var result = [ ];
 
     result.addAll( remCommands );
-    result.addAll( addCommands );
     result.addAll( setCommands );
+    result.addAll( addCommands );
 
     return result;
   }
@@ -1312,10 +1313,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( isSimpleValue( parsedVar ) && len( trim( parsedVar ) ) ) {
-        if ( isValidGUID( parsedVar ) ) {
-          parsedVar = { "id" = parsedVar };
-        } else if ( isJSON( parsedVar ) ) {
+        if ( isJSON( parsedVar ) ) {
           parsedVar = deserializeJSON( parsedVar );
+        } else if ( isValidGUID( parsedVar ) ) {
+          parsedVar = { "id" = parsedVar };
+        } else {
+          parsedVar = { "name" = parsedVar };
         }
       }
 
@@ -1389,7 +1392,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
-  public void function basecfcLog( required string text, string level = "information", string file = request.appName, string type = "" ) {
+  public void function basecfcLog( required string text, string level = "information", string file = request.appName & "-basecfc", string type = "" ) {
     if ( len( type ) && arrayFindNoCase( variables.logLevels, type ) ) {
       level = type;
     }
