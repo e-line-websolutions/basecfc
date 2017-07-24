@@ -1205,8 +1205,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     for ( var objectid in instructionsQueue ) {
       var object = request.basecfc.queuedObjects[ objectId ];
-      entitySave( object );
       basecfcLog( "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#" );
+      entitySave( object );
     }
 
     if ( request.context.debug ) {
@@ -1345,6 +1345,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           basecfcLog( "Creating new #entityName#." );
         }
         var objectToLink = entityNew( entityName );
+        entitySave( objectToLink );
         var objectId = objectToLink.getId( );
         if ( !structKeyExists( request.basecfc.queuedObjects, objectId ) ) {
           request.basecfc.queuedObjects[ objectId ] = objectToLink;
