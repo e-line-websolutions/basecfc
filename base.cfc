@@ -213,11 +213,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
+    var useValidation = structKeyExists( request.basecfc, "validationService" );
     var useSanitation = structKeyExists( request.basecfc, "sanitationService" );
-
-    if ( useSanitation ) {
-      var sanitationInstance = request.basecfc.sanitationService;
-    }
 
     if ( request.context.debug ) {
       var debugid = formatAsGUID( createUUID( ) );
@@ -588,13 +585,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
                     if ( useSanitation && arrayFindNoCase( sanitizeDataTypes, dataType ) ) {
                       var dirtyValue = duplicate( nestedData );
+                      var sanitationResult = request.basecfc.sanitationService.sanitize( nestedData, dataType );
 
-                      nestedData = sanitationInstance.sanitize( nestedData, dataType );
+                      nestedData = sanitationResult.value;
 
-                      var sanitationFailed = sanitationInstance.hasErrors( );
+                      var sanitationFailed = structKeyExists( sanitationResult, "error" );
 
                       if ( sanitationFailed ) {
-                        var sanitationError = sanitationInstance.getError( );
+                        var sanitationError = sanitationResult.error;
 
                         arrayAppend( variables.instance.sanitationReport, {
                           "type" = "sanitation",
@@ -1169,7 +1167,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( structKeyExists( request.basecfc, "validationService" ) ) {
-        var validated = request.basecfc.validationService.validate( object );
+        try {
+          var validated = request.basecfc.validationService.validate( object );
+        } catch ( any e ) {
+          throw( "An unexpected error occured in the validationService", "basecfc.processQueue.validationServiceError", e.message & ", " & e.detail, 500, e.StackTrace );
+        }
 
         if ( validated.hasErrors( ) ) {
           var errorsInValidation = validated.getErrors( );
