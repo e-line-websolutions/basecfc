@@ -598,6 +598,73 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
+    describe( "delete and restore tests", function( ) {
+      it ( "Expects restore() to set deleted flag to false", function () {
+        transaction {
+          var entityToDelete = entityNew( "test" );
+          entitySave( entityToDelete );
+          entityToDelete.save( { "name" = "entityToDelete", "deleted" = true } );
+          var pk = entityToDelete.getId( );
+        }
+
+        expect( entityToDelete.getDeleted( ) ).toBeTrue( );
+
+        transaction {
+          entityToDelete.restore( );
+        }
+
+        var entityToDelete = entityLoadByPK( "test", pk );
+
+        expect( entityToDelete.getDeleted( ) ).toBeFalse( );
+      } );
+
+      it ( "Expects delete() to set deleted flag to true", function () {
+        transaction {
+          var entityToDelete = entityNew( "test" );
+          entitySave( entityToDelete );
+          entityToDelete.save( { "name" = "entityToDelete" } );
+          var pk = entityToDelete.getId( );
+        }
+
+        transaction {
+          entityToDelete.delete( );
+        }
+
+        var entityToDelete = entityLoadByPK( "test", pk );
+
+        expect( entityToDelete.getDeleted( ) ).toBeTrue( );
+      } );
+
+      it ( "Expects delete() and restore() functions to act consistently", function () {
+        transaction {
+          var entityToDelete = entityNew( "test" );
+          entitySave( entityToDelete );
+          entityToDelete.save( { "name" = "entityToDelete" } );
+          var pk = entityToDelete.getId( );
+        }
+
+        var entityToDelete = entityLoadByPK( "test", pk );
+
+        expect( entityToDelete.getDeleted( ) ).toBeFalse( );
+
+        transaction {
+          entityToDelete.delete( );
+        }
+
+        var entityToDelete = entityLoadByPK( "test", pk );
+
+        expect( entityToDelete.getDeleted( ) ).toBeTrue( );
+
+        transaction {
+          entityToDelete.restore( );
+        }
+
+        var entityToDelete = entityLoadByPK( "test", pk );
+
+        expect( entityToDelete.getDeleted( ) ).toBeFalse( );
+      } );
+    } );
+
     describe( "Transaction Tests", function( ) {
       beforeEach( function( currentSpec ) {
         var allTests = entityLoad( "test" );

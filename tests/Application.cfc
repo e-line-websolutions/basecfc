@@ -22,6 +22,11 @@ component {
     ORMReload( );
 
     request.appName = this.name;
-    request.context = { debug = structKeyExists( url, "debug" ) ? url.debug : false };
+    request.context = {
+      "debug" = ( structKeyExists( url, "debug" ) ? url.debug : false ),
+      "config" = {
+        "logLevel" = "debug"
+      }
+    };
   }
 }
