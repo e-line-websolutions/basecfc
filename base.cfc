@@ -38,7 +38,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     "percentage",
     "timestamp"
   ];
-  variables.logLevels = [ "information", "warning", "error", "fatal" ];
+  variables.logLevels = [ "debug", "information", "warning", "error", "fatal" ];
 
   param request.appName="basecfc";
   param request.context.debug=false;
@@ -69,7 +69,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( !structKeyExists( request, "allEntities" ) ) {
-      var cachedEntities = cacheGet( "#request.appName#-allEntities" );
+      var cachedEntities = cacheGet( "allEntities_#request.appName#" );
       if ( isNull( cachedEntities ) ) {
         var cachedEntities = { };
         var allEntities = variables.instance.sessionFactory.getAllClassMetadata( );
@@ -80,7 +80,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             "table" = entity.getTableName( )
           };
         }
-        cachePut( "#request.appName#-allEntities", cachedEntities );
+        cachePut( "allEntities_#request.appName#", cachedEntities );
       }
       request.allEntities = cachedEntities;
     }
@@ -150,7 +150,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( type = "basecfc.global", message = logMessage );
     }
 
-    var canBeLogged = ( variables.instance.config.log && isInstanceOf( this, "#variables.instance.config.root#.model.logged" ) );
     var inheritedProperties = variables.instance.properties;
     var logFields = "createcontact,createdate,createip,updatecontact,updatedate,updateip";
     var savedState = { };
@@ -173,7 +172,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         "ormSession" = ormGetSession( )
       };
 
-      if ( canBeLogged ) {
+      if ( canBeLogged( ) ) {
         if ( !len( trim( getCreateDate( ) ) ) ) {
           formData.createdate = now( );
         }
@@ -695,18 +694,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // Process queued instructions
     if ( depth == 0 ) {
       processQueue( );
-
-      if ( canBeLogged && variables.instance.entityName != "logentry" ) {
-        var logAction = isNew( ) ? "created" : "changed";
-        var logEntry = entityNew( "logentry" );
-        entitySave( logEntry );
-        var logResult = logEntry.enterIntoLog( logAction, savedState, this );
-        basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
-        request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
-      }
+      logChanges( savedState );
     }
 
     return this;
+  }
+
+  public void function delete( ) {
+    variables.deleted = true;
+    basecfcLog( "Marked #variables.instance.entityName# as deleted" );
+    logChanges( { "deleted" = true } );
+  }
+
+  public void function restore( ) {
+    variables.deleted = false;
+    basecfcLog( "Unmarked #variables.instance.entityName# as deleted" );
+    logChanges( { "deleted" = false } );
   }
 
   // Utility functions:
@@ -807,7 +810,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * a struct containing this objects and its ancestors properties
     */
   public struct function getInheritedProperties( ) {
-    var cachedPropertiesKey = "#request.appName#-#variables.instance.className#-props";
+    var cachedPropertiesKey = "props-#request.appName#_#variables.instance.className#";
     var cachedProperties = cacheGet( cachedPropertiesKey );
 
     if ( !isNull( cachedProperties ) ) {
@@ -865,6 +868,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           errorDetail &= chr( 10 ) & "In template: #left( fkColumn, len( fkColumn ) - 2 )#.cfc";
         }
       } catch ( any e ) {
+        basecfcLog( e.message, "fatal" );
         var errorDetail = "";
       }
 
@@ -1326,7 +1330,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( isStruct( parsedVar ) ) {
         if ( structIsEmpty( parsedVar ) ) {
-          return javaCast( "null", 0 );
+          return;
         }
 
         var pk = "";
@@ -1354,7 +1358,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
       }
 
-      if ( isObject( objectToLink ) ) {
+      if ( isObject( objectToLink ) && isInstanceOf( objectToLink, "basecfc.base" ) ) {
         return objectToLink;
       }
 
@@ -1395,7 +1399,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * Route all logging through this method so it can be changed to some
     * external tool some day (as well as shown as debug output)
     */
-  public void function basecfcLog( required string text, string level = "information", string file = request.appName & "-basecfc", string type = "" ) {
+  public void function basecfcLog( required string text, string level = "debug", string file = request.appName & "-basecfc", string type = "" ) {
     if ( len( type ) && arrayFindNoCase( variables.logLevels, type ) ) {
       level = type;
     }
@@ -1485,5 +1489,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             isDefaultField( property ) ||
             isEmptyText( property, formData ) ||
             notInFormdata( property, formData );
+  }
+
+  private boolean function canBeLogged( ) {
+    return ( variables.instance.config.log && isInstanceOf( this, "#variables.instance.config.root#.model.logged" ) );
+  }
+
+  private void function logChanges( struct savedState ) {
+    if ( canBeLogged( ) && variables.instance.entityName != "logentry" ) {
+      var logAction = isNew( ) ? "created" : "changed";
+      var logEntry = entityNew( "logentry" );
+      entitySave( logEntry );
+      var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+      basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
+      request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
+    }
   }
 }
