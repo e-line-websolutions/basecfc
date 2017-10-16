@@ -26,19 +26,10 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  variables.version = "3.5.4";
-  variables.sanitizeDataTypes = [
-    "date",
-    "datetime",
-    "double",
-    "float",
-    "int",
-    "integer",
-    "numeric",
-    "percentage",
-    "timestamp"
-  ];
-  variables.logLevels = [ "debug", "information", "warning", "error", "fatal" ];
+  this.version = "3.5.5";
+  this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
+  this.logLevels = listToArray( "debug,information,warning,error,fatal" );
+  this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
 
   param request.appName="basecfc";
   param request.context.debug=false;
@@ -75,10 +66,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var allEntities = variables.instance.sessionFactory.getAllClassMetadata( );
         for ( var key in allEntities ) {
           var entity = allEntities[ key ];
-          cachedEntities[ key ] = {
-            "name" = entity.getEntityName( ),
-            "table" = entity.getTableName( )
-          };
+          cachedEntities[ key ] = { "name" = entity.getEntityName( ), "table" = entity.getTableName( ) };
         }
         cachePut( "allEntities_#request.appName#", cachedEntities );
       }
@@ -118,7 +106,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         !structKeyExists( variables.instance.properties, "deleted" ) ||
         !structKeyExists( variables.instance.properties, "sortorder" )
       ) && variables.instance.className != "basecfc.base" ) {
-      throw( "basecfc.init", "Missing essential properties", "Objects extending basecfc must have a name, deleted and sortorder property." );
+      throw(
+        "Missing essential properties",
+        "basecfc.init",
+        "Objects extending basecfc must have a name, deleted and sortorder property."
+      );
     }
 
     return this;
@@ -140,26 +132,24 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if ( !structKeyExists( variables, "instance" ) ) {
       var logMessage = "Basecfc not initialised";
       basecfcLog( logMessage, "fatal" );
-      throw( type = "basecfc.global", message = logMessage );
+      throw( logMessage, "basecfc.global" );
     }
 
     // Hard coded depth limit
     if ( depth > 10 ) {
       var logMessage = "Infinite loop fail safe triggered";
       basecfcLog( logMessage, "fatal" );
-      throw( type = "basecfc.global", message = logMessage );
+      throw( logMessage, "basecfc.global" );
     }
 
     var inheritedProperties = variables.instance.properties;
-    var logFields = "createcontact,createdate,createip,updatecontact,updatedate,updateip";
     var savedState = { };
-    var logFieldsAsArray = listToArray( logFields );
 
-    for ( var logField in logFieldsAsArray ) {
+    for ( var logField in this.logFields ) {
       structDelete( formData, logField );
     }
 
-    if ( isNull( deleted ) ) {
+    if ( isNull( variables.deleted ) ) {
       formData.deleted = false;
     }
 
@@ -222,9 +212,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( !structKeyExists( request, "basecfc-save" ) ) {
         request[ "basecfc-save" ] = true;
-        writeOutput(
-          '<script src="http://helper.e-line.nl/prettify/run_prettify.js"></script><style>td,th,h2{padding:3px;}table,td,th{border:1px solid ##8091A4}td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}.basecfc-debug{width:900px;margin:0 auto}.basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}.basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}.basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}.result{color:red}</style>'
-        );
+        writeOutput( '<script src="http://helper.e-line.nl/prettify/run_prettify.js"></script><style>td,th,h2{padding:3px;}table,td,th{border:1px solid ##8091A4}td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}.basecfc-debug{width:900px;margin:0 auto}.basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}.basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}.basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}.result{color:red}</style>' );
       }
 
       if ( depth == 0 ) {
@@ -233,9 +221,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         display = '';
       }
 
-      writeOutput(
-        '<div class="call"><h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2><table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#><tr><th colspan="2">Name: "#getName( )#"</th></tr><tr><td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td></tr>'
-      );
+      writeOutput( '<div class="call"><h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2><table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#><tr><th colspan="2">Name: "#getName( )#"</th></tr><tr><td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td></tr>' );
     }
 
     // This object can handle non-existing fields, so lets add those to the properties struct.
@@ -243,10 +229,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var formDataKeys = structKeyArray( formData );
       for ( var key in formDataKeys ) {
         if ( !structKeyExists( inheritedProperties, key ) && !listFindNoCase( variables.instance.defaultFields, key ) ) {
-          inheritedProperties[ key ] = {
-            "name" = key,
-            "jsonData" = true
-          };
+          inheritedProperties[ key ] = { "name" = key, "jsonData" = true };
         }
       }
     }
@@ -265,7 +248,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var valueToLog = "";
 
           if ( structKeyExists( property, "cfc" ) ) {
-            var reverseCFCLookup = listFindNoCase( logFields, key ) ? "#variables.instance.config.root#.model.logged" : variables.instance.className;
+            var reverseCFCLookup = arrayFindNoCase( this.logFields, key ) ? "#variables.instance.config.root#.model.logged" : variables.instance.className;
           }
 
           param string property.fieldtype="string";
@@ -351,9 +334,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                   }
                 } catch ( any e ) {
                   throw(
-                    type = "basecfc.global",
-                    message = "Error in query",
-                    detail = "#e.message# #e.detail# - SQL: #sql#, Params: #serializeJSON( sqlparams )#"
+                    "Error in query",
+                    "basecfc.global",
+                    "#e.message# #e.detail# - SQL: #sql#, Params: #serializeJSON( sqlparams )#"
                   );
                 }
 
@@ -497,7 +480,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             // | (_) || ' \ / -_)|___| | | / _ \|___|| (_) || ' \ / -_)
             //  \___/ |_||_|\___|      |_| \___/      \___/ |_||_|\___|
             //
-              throw( message = "Not implemented", detail = "One-to-one relations are not yet supported.", type = "basecfc.save" );
+              throw( "Not implemented", "basecfc.save", "One-to-one relations are not yet supported." );
 
             default :
             //  _____            ___
@@ -582,7 +565,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                     } catch ( any e ) {
                     }
 
-                    if ( useSanitation && arrayFindNoCase( sanitizeDataTypes, dataType ) ) {
+                    if ( useSanitation && arrayFindNoCase( this.sanitizeDataTypes, dataType ) ) {
                       var dirtyValue = duplicate( nestedData );
                       var sanitationResult = request.basecfc.sanitationService.sanitize( nestedData, dataType );
 
@@ -662,7 +645,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           }
 
           if ( structKeyExists( local, "valueToLog" ) ) {
-            if ( !listFindNoCase( logFields, property.name ) ) {
+            if ( !arrayFindNoCase( this.logFields, property.name ) ) {
               savedState[ property.name ] = valueToLog;
             }
             structDelete( local, "valueToLog" );
@@ -675,9 +658,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( request.context.debug && len( trim( debugoutput ) ) ) {
         var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
-        writeOutput(
-          '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount( ) - propTimer#ms</td></tr>'
-        );
+        writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">#len( trim( debugoutput ) ) ? debugoutput : 'no action'#<br/>#getTickCount( ) - propTimer#ms</td></tr>' );
       }
 
       if ( structKeyExists( local, "updateStruct" ) ) {
@@ -723,7 +704,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var start = findNoCase( "#sep#model#sep#", filePath );
 
     if ( start > 0 ) {
-      result = variables.instance.config.root & replace( replace( mid( filePath, start, len( filePath ) ), ".cfc", "", "one" ), sep, ".", "all" );
+      result = variables.instance.config.root & replace(
+        replace( mid( filePath, start, len( filePath ) ), ".cfc", "", "one" ),
+        sep,
+        ".",
+        "all"
+      );
     }
 
     return result;
@@ -872,7 +858,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var errorDetail = "";
       }
 
-      throw( type = "basecfc.getReverseField", message = logMessage, detail = errorDetail );
+      throw( logMessage, "basecfc.getReverseField", errorDetail );
     }
 
     for ( var property in propertiesWithCFC ) {
@@ -914,7 +900,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if ( fieldFound == 0 ) {
       var logMessage = "getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.";
       basecfcLog( logMessage, "fatal" );
-      throw( type = "basecfc.getReverseField", message = logMessage );
+      throw( logMessage, "basecfc.getReverseField" );
     }
 
     var result = field.name;
@@ -962,7 +948,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var properties = data.getInheritedProperties( );
       for ( var key in properties ) {
         var prop = properties[ key ];
-        if ( !structKeyExists( data, 'get' & prop.name ) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase( "-to-", prop.fieldtype ) ) ) {
+        if ( !structKeyExists( data, 'get' & prop.name ) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase(
+          "-to-",
+          prop.fieldtype
+        ) ) ) {
           continue;
         }
         deWormed[ prop.name ] = evaluate( "data.get#prop.name#()" );
@@ -1174,7 +1163,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         try {
           var validated = request.basecfc.validationService.validate( object );
         } catch ( any e ) {
-          throw( "An unexpected error occured in the validationService", "basecfc.processQueue.validationServiceError", e.message & ", " & e.detail, 500, e.StackTrace );
+          throw(
+            "An unexpected error occured in the validationService",
+            "basecfc.processQueue.validationServiceError",
+            e.message & ", " & e.detail,
+            500,
+            e.StackTrace
+          );
         }
 
         if ( validated.hasErrors( ) ) {
@@ -1278,7 +1273,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( isNull( valueID ) ) {
         var logMessage = "No ID set on entity #value.getName( )#";
         basecfcLog( logMessage, "fatal" );
-        throw( type = "basecfc.queueInstruction", message = logMessage );
+        throw( logMessage, "basecfc.queueInstruction" );
       }
 
       // Adds multiple values:
@@ -1364,7 +1359,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       var logMessage = "Variable could not be translated to component of type #entityName#";
       basecfcLog( logMessage, "fatal" );
-      throw( type = "basecfc.toComponent", message = logMessage );
+      throw( logMessage, "basecfc.toComponent" );
     } catch ( basecfc.toComponent e ) {
       if ( request.context.debug ) {
         try {
@@ -1387,11 +1382,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           writeDump( e );
           abort;
         } catch ( any e ) {
-          throw( type = "basecfc.toComponent", message = logMessage );
+          throw( logMessage, "basecfc.toComponent" );
         }
       }
 
-      throw( type = "basecfc.toComponent", message = logMessage );
+      throw( logMessage, "basecfc.toComponent" );
     }
   }
 
@@ -1400,17 +1395,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * external tool some day (as well as shown as debug output)
     */
   public void function basecfcLog( required string text, string level = "debug", string file = request.appName & "-basecfc", string type = "" ) {
-    if ( len( type ) && arrayFindNoCase( variables.logLevels, type ) ) {
+    if ( len( type ) && arrayFindNoCase( this.logLevels, type ) ) {
       level = type;
     }
 
-    var requestedLevel = arrayFindNoCase( variables.logLevels, level );
+    var requestedLevel = arrayFindNoCase( this.logLevels, level );
 
     if ( !requestedLevel ) {
       return;
     }
 
-    var levelThreshold = arrayFindNoCase( variables.logLevels, variables.instance.config.logLevel );
+    var levelThreshold = arrayFindNoCase( this.logLevels, variables.instance.config.logLevel );
 
     if ( requestedLevel >= levelThreshold ) {
       writeLog( text = text, type = level, file = file );
@@ -1466,22 +1461,24 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   private boolean function isEmptyText( required struct property, required struct formData ) {
-    return structKeyExists( formData, property.name ) && isSimpleValue( formData[ property.name ] ) && !len( trim( formData[ property.name ] ) );
+    return ( structKeyExists( formData, property.name ) &&
+             isSimpleValue( formData[ property.name ] ) &&
+             !len( trim( formData[ property.name ] ) ) );
   }
 
   private boolean function notInFormdata( required struct property, required struct formData ) {
-    return (
-      !structKeyExists( formData, property.name ) &&
-      !structKeyExists( formData, "set_#property.name#" ) &&
-      !( structKeyExists( formData, "add_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
-        formData,
-        "add_#property.singularName#"
-      ) ) ) &&
-      !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
-        formData,
-        "remove_#property.singularName#"
-      ) ) )
-    );
+    return ( !structKeyExists( formData, property.name ) &&
+             !structKeyExists( formData, "#property.name#id" ) &&
+             !structKeyExists( formData, "set_#property.name#" ) &&
+             !( structKeyExists( formData, "add_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
+               formData,
+               "add_#property.singularName#"
+             ) ) ) &&
+             !( structKeyExists( formData, "remove_#property.name#" ) || ( structKeyExists( property, "singularName" ) && structKeyExists(
+               formData,
+               "remove_#property.singularName#"
+             ) ) )
+           );
   }
 
   private boolean function skipProperty( required struct property, required struct formData ) {
