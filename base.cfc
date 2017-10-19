@@ -99,6 +99,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance[ "className" ] = getClassName( );
     variables.instance[ "entityName" ] = getEntityName( );
     variables.instance[ "properties" ] = getInheritedProperties( );
+    variables.instance[ "settings" ] = getInheritedSettings( );
+
     variables.instance[ "defaultFields" ] = "log,id,fieldnames,submitbutton,#variables.instance.entityName#id";
 
     if ( (
@@ -998,6 +1000,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   public struct function getInstanceVariables( ) {
     var result = duplicate( variables.instance );
+
     structDelete( result, "meta" );
     structDelete( result, "sessionFactory" );
 
@@ -1008,7 +1011,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var classMetaData = variables.instance.sessionFactory.getClassMetadata( variables.instance.entityName );
 
     if ( classMetaData.hasSubclasses( ) ) {
-      return classMetaData.getSubclassClosure( );
+      try {
+        return classMetaData.getSubclassClosure( );
+      } catch ( any e ) { }
     }
 
     return [ ];
@@ -1501,5 +1506,31 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
       request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
     }
+  }
+
+  private struct function getInheritedSettings( ) {
+    var cachedSettingsKey = "settings-#request.appName#_#variables.instance.className#";
+    var cachedSettings = cacheGet( cachedSettingsKey );
+
+    if ( !isNull( cachedSettings ) ) {
+      return cachedSettings;
+    }
+
+    var md = variables.instance.meta;
+    var result = { };
+
+    do {
+      for ( var key in md ) {
+        if ( isSimpleValue( md[ key ] ) && !structKeyExists( result, key ) ) {
+          result[ key ] = md[ key ];
+        }
+      }
+
+      md = md.extends;
+    } while ( structKeyExists( md, "extends" ) );
+
+    cachePut( cachedSettingsKey, result );
+
+    return result;
   }
 }
