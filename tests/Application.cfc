@@ -15,7 +15,7 @@ component {
   this.ORMSettings = {
     datasource = "basecfc",
     dbcreate = "dropcreate",
-    cfclocation = this.root & "/model/beans"
+    cfclocation = expandPath( "./model/beans" )
   };
 
   public void function onRequestStart( ) {

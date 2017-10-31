@@ -1,4 +1,7 @@
 component extends="testbox.system.BaseSpec" {
+  variables.bf = new framework.ioc( [ "/mustang/services" ], { "constants" = { "config" = { } } } );
+  variables.dataService = bf.getBean( "dataService" );
+
   function beforeAll( ) {
     addMatchers( {
                toBeJSON = function( expectation, args={}) { return isJSON( expectation.actual ); },
@@ -11,11 +14,20 @@ component extends="testbox.system.BaseSpec" {
   }
 
   function run( ) {
+    describe( "Test object instantiation", function( ) {
+      it( "Expects baseCFC Objects to throw an error when missing mandatory properties", function( ) {
+        expect( function( ) { var newObject = entityNew( "test" ); } )
+          .notToThrow( );
+
+        expect( function( ) { var newObject = entityNew( "invalid" ); } )
+          .toThrow( "basecfc.init.invalidPropertiesError" );
+      } );
+    } );
+
     describe( "Test helper methods.", function( ) {
       beforeEach( function( currentSpec ) {
         obj = entityNew( "test" );
         obj.save( { name="helperMethods" } );
-        entitySave( obj );
       } );
 
       afterEach( function( currentSpec ) {
@@ -130,9 +142,7 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "Test basic save function.", function( ) {
       beforeEach( function( currentSpec ) {
-        obj = entityNew( "test" );
-        obj.save( { name="InvalidNameBasicSave" } );
-        entitySave( obj );
+        obj = entityNew( "test" ).save( { name = "InvalidNameBasicSave" } );
       } );
 
       afterEach( function( currentSpec ) {
@@ -140,7 +150,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( ) to return the entity", function( ) {
-        expect( obj.save( ))
+        var result = obj.save( );
+        expect( result )
           .toBeTypeOf( 'component' )
           .toBeInstanceOf( 'root.model.beans.test' );
       } );
@@ -161,23 +172,9 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( ) to prioritize first level values", function( ) {
-        var more = entityNew( "more" ).save( {
-          name  = "more",
-          tests = [
-            {
-              testid = obj.getID( ),
-              name = "renamed"
-            }
-          ]
-        } );
-
-        entitySave( more );
-
-        obj.save( {
-          "name" = "prio name",
-          "more" = more
-        } );
-
+        var tests = [ { testid = obj.getID( ), name = "renamed" } ];
+        var more = entityNew( "more" ).save( { name  = "more", tests = tests } );
+        obj.save( { "name" = "prio name", "more" = more } );
         expect( obj.getName( ))
           .toBe( "prio name" )
           .notToBe( "renamed" );
@@ -186,11 +183,7 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "Test save function with one-to-many relations.", function( ) {
       beforeEach( function( currentSpec ) {
-        transaction {
-          obj = entityNew( "test" );
-          obj.save( { name="InvalidName" } );
-          entitySave( obj );
-        }
+        obj = entityNew( "test" ).save( { name = "InvalidName" } );
       } );
 
       afterEach( function( currentSpec ) {
@@ -198,14 +191,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data=obj}) to be able to add a one-to-many object using object", function( ) {
-        var other = entityNew( "other" );
-        entitySave( other );
-
-        var saveData = {
-          add_entityInSubfolder = other
-        };
-
-        var saved = obj.save( saveData );
+        var other = entityNew( "other" ).save( );
+        var saved = obj.save( { add_entityInSubfolder = other } );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder )
@@ -217,14 +204,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data=123}) to be able to add a one-to-many object using pk", function( ) {
-        var other = entityNew( "other" );
-        entitySave( other );
-
-        var saveData = {
-          add_entityInSubfolder = other.getID( )
-        };
-
-        var saved = obj.save( saveData );
+        var other = entityNew( "other" ).save( );
+        var saved = obj.save( { add_entityInSubfolder = other.getID( ) } );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder)
@@ -236,14 +217,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data={id:123}}) to be able to add a one-to-many object using pk in struct", function( ) {
-        var other = entityNew( "other" );
-        entitySave( other );
-
-        var saveData = {
-          add_entityInSubfolder = { id = other.getID( )}
-        };
-
-        var saved = obj.save( saveData );
+        var other = entityNew( "other" ).save( );
+        var saved = obj.save( { add_entityInSubfolder = { id = other.getID( ) } } );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder)
@@ -255,14 +230,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data='{id:123}'}) to be able to add a one-to-many object using pk in json", function( ) {
-        var other = entityNew( "other" );
-        entitySave( other );
-
-        var saveData = {
-          add_entityInSubfolder = serializeJSON( { id = other.getID( )})
-        };
-
-        var saved = obj.save( saveData );
+        var other = entityNew( "other" ).save( );
+        var saved = obj.save( { add_entityInSubfolder = serializeJSON( { id = other.getID( )}) } );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder)
@@ -274,16 +243,14 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data={name='test'}}) to be able to add a NEW one-to-many object", function( ) {
-        var saveData = {
+        var saved = obj.save( {
           add_entityInSubfolder = {
             name = "MyNewObject",
             moreother = {
               name = "testMore"
             }
           }
-        };
-
-        var saved = obj.save( saveData );
+        } );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder )
@@ -295,17 +262,16 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {add_data=[data]}) to be able to add multiple one-to-many objects", function( ) {
-        var first = entityNew( "other" ).save( {name="first"} ); entitySave( first );
-        var second = entityNew( "other" ).save( {name="second"} ); entitySave( second );
+        var first = entityNew( "other" ).save( {name="first"} );
+        var second = entityNew( "other" ).save( {name="second"} );
 
-        var saveData = {
+        var saved = obj.save( {
           add_entityInSubfolder = [
-            { id = first.getID( )},
+            { id = first.getID( ) },
             second.getID( )
           ]
-        };
+        } );
 
-        var saved = obj.save( saveData );
         var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
         expect( savedEntitiesInSubfolder )
@@ -320,31 +286,29 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {set_data=[data]}) to replace all items in a one-to-many relation", function( ) {
-        var first = entityNew( "other" ).save( { name = "first" } );
-        entitySave( first );
+        transaction {
+          var first   = entityNew( "other" ).save( { name = "first"   } );
+          var second  = entityNew( "other" ).save( { name = "second"  } );
+          var third   = entityNew( "other" ).save( { name = "third"   } );
 
-        var second = entityNew( "other" ).save( { name = "second" } );
-        entitySave( second );
+          var saveData = {
+            "entitiesInSubFolder" = [ first, second ]
+          };
 
-        var third = entityNew( "other" ).save( { name = "third" } );
-        entitySave( third );
+          var saved = obj.save( saveData );
+          var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
 
-        var saveData = {
-          "entitiesInSubFolder" = [ first, second ]
-        };
+          expect( savedEntitiesInSubfolder )
+            .toBeArray( )
+            .toHaveLength( 2 );
 
-        var saved = obj.save( saveData );
-        var savedEntitiesInSubfolder = saved.getEntitiesInSubfolder( );
+          expect( savedEntitiesInSubfolder[ 1 ].getId( ) )
+            .toBe( first.getId( ) );
 
-        ormFlush( ); // write to database, so added items can be found in next test
+          expect( savedEntitiesInSubfolder[ 2 ].getId( ) )
+            .toBe( second.getId( ) );
+        }
 
-        expect( savedEntitiesInSubfolder )
-          .toBeArray( )
-          .toHaveLength( 2 );
-        expect( savedEntitiesInSubfolder[1].getId( ) )
-          .toBe( first.getId( ) );
-        expect( savedEntitiesInSubfolder[2].getId( ) )
-          .toBe( second.getId( ) );
 
         var overwriteData = {
           "entitiesInSubFolder" = [ third ]
@@ -353,29 +317,24 @@ component extends="testbox.system.BaseSpec" {
         var newSave = obj.save( overwriteData );
         var savedEntitiesInSubfolder = newSave.getEntitiesInSubfolder( );
 
-        ormFlush( ); // write to database, so added items can be found in next test
-
         expect( savedEntitiesInSubfolder )
           .toBeArray( )
           .toHaveLength( 1 );
-        expect( savedEntitiesInSubfolder[1].getId( ) )
+
+        expect( savedEntitiesInSubfolder[ 1 ].getId( ) )
           .toBe( third.getId( ) );
       } );
 
       it ( "Expects remove to work", function ( ) {
-        var multiple_1 = entityNew( "multiple" );
-        var multiple_2 = entityNew( "multiple" );
-        entitySave( multiple_1 );
-        entitySave( multiple_2 );
+        var multiple_1 = entityNew( "multiple" ).save( );
+        var multiple_2 = entityNew( "multiple" ).save( );
 
-        transaction {
-          obj.save(
-            {
-              "name" = "toManyUpdateTest",
-              "multiples" = [ multiple_1, multiple_2 ]
-            }
-          );
-        }
+        obj.save(
+          {
+            "name" = "toManyUpdateTest",
+            "multiples" = [ multiple_1, multiple_2 ]
+          }
+        );
 
         transaction {
           obj.save(
@@ -393,19 +352,15 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it ( "Expects update multiple items to not remove old items", function ( ) {
-        var multiple_1 = entityNew( "multiple" );
-        var multiple_2 = entityNew( "multiple" );
-        entitySave( multiple_1 );
-        entitySave( multiple_2 );
+        var multiple_1 = entityNew( "multiple" ).save( );
+        var multiple_2 = entityNew( "multiple" ).save( );
 
-        transaction {
-          obj.save(
-            {
-              "name" = "toManyUpdateTest",
-              "multiples" = [ multiple_1 ]
-            }
-          );
-        }
+        obj.save(
+          {
+            "name" = "toManyUpdateTest",
+            "multiples" = [ multiple_1 ]
+          }
+        );
 
         transaction {
           obj.save(
@@ -429,10 +384,6 @@ component extends="testbox.system.BaseSpec" {
           entityNew( "multiple" ).save( {name="c"})
         ];
 
-        for( testObject in testObjects ) {
-          entitySave( testObject );
-        }
-
         obj.save( {
           set_multiples = [ testObjects[1], testObjects[2] ],
           add_multiple = testObjects[3]
@@ -454,9 +405,7 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "Test save function with many-to-one relations.", function( ) {
       beforeEach( function( currentSpec ) {
-        obj = entityNew( "test" );
-        obj.save( { name="InvalidName" } );
-        entitySave( obj );
+        obj = entityNew( "test" ).save( { name="InvalidName" } );
       } );
 
       afterEach(function( currentSpec ) {
@@ -464,14 +413,9 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {data=obj}) to be able to add a many-to-one object using object", function( ) {
-        var more = entityNew( "more" );
-        entitySave( more );
-
+        var more = entityNew( "more" ).save( );
         var savedMore = entityLoadByPK( "more", more.getID( ));
-        var saveData = {
-          more = savedMore
-        };
-        var saved = obj.save( saveData );
+        var saved = obj.save( { more = savedMore } );
 
         expect( saved ).notToBeNull( );
 
@@ -483,22 +427,16 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {data=123}) to be able to add a many-to-one object using pk", function( ) {
-        var more = entityNew( "more" );
-        entitySave( more );
-
-        var saveData = {
-          more = more.getID( )
-        };
-
-        var saved = obj.save( saveData );
+        var more = entityNew( "more" ).save( );
+        var saved = obj.save( { more = more.getID( ) } );
 
         expect( saved.getMore( ).getId( ) )
           .toBe( more.getId( ) );
       } );
 
       it( "Expects save( {data={id=123}}) to be able to add a many-to-one object using pk in struct", function( ) {
-        var more = entityNew( "more" );
-        entitySave( more );
+        var more = entityNew( "more" ).save( );
+
 
         var saveData = {
           more = { id = more.getID( )}
@@ -511,8 +449,8 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it( "Expects save( {data='{id:123}'}) to be able to add a many-to-one object using pk in json", function( ) {
-        var more = entityNew( "more" );
-        entitySave( more );
+        var more = entityNew( "more" ).save( );
+
 
         var saveData = {
           more = serializeJSON( { id = more.getID( )})
@@ -571,8 +509,8 @@ component extends="testbox.system.BaseSpec" {
     describe( "Test save function with many-to-many relations.", function( ) {
       it( "Expects save( ) to work with many-to-many relations", function( ){
         transaction {
-          var sideA = entityNew( "multiple" ).save( {name="sideA"} ); entitySave( sideA );
-          var sideB = entityNew( "multiple" ).save( {name="sideB"} ); entitySave( sideB );
+          var sideA = entityNew( "multiple" ).save( {name="sideA"} );
+          var sideB = entityNew( "multiple" ).save( {name="sideB"} );
 
           sideA.save( {
             multiplesB = [ sideB ]
@@ -600,18 +538,14 @@ component extends="testbox.system.BaseSpec" {
 
     describe( "delete and restore tests", function( ) {
       it ( "Expects restore() to set deleted flag to false", function () {
-        transaction {
-          var entityToDelete = entityNew( "test" );
-          entitySave( entityToDelete );
-          entityToDelete.save( { "name" = "entityToDelete", "deleted" = true } );
-          var pk = entityToDelete.getId( );
-        }
+        var entityToDelete = entityNew( "test" );
+
+        entityToDelete.save( { "name" = "entityToDelete", "deleted" = true } );
+        var pk = entityToDelete.getId( );
 
         expect( entityToDelete.getDeleted( ) ).toBeTrue( );
 
-        transaction {
-          entityToDelete.restore( );
-        }
+        entityToDelete.restore( );
 
         var entityToDelete = entityLoadByPK( "test", pk );
 
@@ -619,16 +553,12 @@ component extends="testbox.system.BaseSpec" {
       } );
 
       it ( "Expects delete() to set deleted flag to true", function () {
-        transaction {
-          var entityToDelete = entityNew( "test" );
-          entitySave( entityToDelete );
-          entityToDelete.save( { "name" = "entityToDelete" } );
-          var pk = entityToDelete.getId( );
-        }
+        var entityToDelete = entityNew( "test" );
 
-        transaction {
-          entityToDelete.delete( );
-        }
+        entityToDelete.save( { "name" = "entityToDelete" } );
+        var pk = entityToDelete.getId( );
+
+        entityToDelete.delete( );
 
         var entityToDelete = entityLoadByPK( "test", pk );
 
@@ -638,28 +568,24 @@ component extends="testbox.system.BaseSpec" {
       it ( "Expects delete() and restore() functions to act consistently", function () {
         transaction {
           var entityToDelete = entityNew( "test" );
-          entitySave( entityToDelete );
+
           entityToDelete.save( { "name" = "entityToDelete" } );
           var pk = entityToDelete.getId( );
-        }
 
-        var entityToDelete = entityLoadByPK( "test", pk );
+          var entityToDelete = entityLoadByPK( "test", pk );
 
-        expect( entityToDelete.getDeleted( ) ).toBeFalse( );
+          expect( entityToDelete.getDeleted( ) ).toBeFalse( );
 
-        transaction {
           entityToDelete.delete( );
-        }
 
-        var entityToDelete = entityLoadByPK( "test", pk );
+          var entityToDelete = entityLoadByPK( "test", pk );
 
-        expect( entityToDelete.getDeleted( ) ).toBeTrue( );
+          expect( entityToDelete.getDeleted( ) ).toBeTrue( );
 
-        transaction {
           entityToDelete.restore( );
-        }
 
-        var entityToDelete = entityLoadByPK( "test", pk );
+          var entityToDelete = entityLoadByPK( "test", pk );
+        }
 
         expect( entityToDelete.getDeleted( ) ).toBeFalse( );
       } );
@@ -670,14 +596,13 @@ component extends="testbox.system.BaseSpec" {
         var allTests = entityLoad( "test" );
         var allMores = entityLoad( "more" );
 
-        transaction {
-          allTests.each( function ( item ) {
-            entityDelete( item );
-          } );
-          allMores.each( function ( item ) {
-            entityDelete( item );
-          } );
-        }
+        allTests.each( function ( item ) {
+          entityDelete( item );
+        } );
+
+        allMores.each( function ( item ) {
+          entityDelete( item );
+        } );
       } );
 
 
@@ -746,7 +671,6 @@ component extends="testbox.system.BaseSpec" {
           try {
             transactionCommit( );
           } catch ( any e ) {
-            writeDump( e );abort;
             transactionRollback( );
           }
         }
@@ -754,6 +678,132 @@ component extends="testbox.system.BaseSpec" {
         var allValidationtests = entityLoad( "validationtests" );
 
         expect( allValidationtests ).toHaveLength( 1 );
+      } );
+    } );
+
+    describe( "Tests mustang logging integration", function( ) {
+      it( "Expects baseCFC to save a logentry when an object inherits from logged", function() {
+        request.context.config.log = true;
+
+        var logable = entityNew( "logable" );
+        var result = logable.save( { "aFieldToTest" = "firstValue", "thisWontChange" = "staticValue" } );
+        var result = logable.save( { "aFieldToTest" = "secondValue" } );
+        var log = entityLoad( "logentry" );
+
+        expect( log )
+          .toBeTypeOf( "array" )
+          .toHaveLength( 2 );
+
+        expect( log[ 1 ].getSavedState( ) )
+          .toBe( '{"aFieldToTest":"firstValue","thisWontChange":"staticValue"}' );
+
+        expect( log[ 2 ].getSavedState( ) )
+          .toBe( '{"aFieldToTest":"secondValue"}' );
+      } );
+    } );
+
+    describe( "Tests one-to-one connections", function( ) {
+      it( "Expects one-to-one connections to work on two objects", function( ) {
+        transaction {
+          var b = entityNew( "oneB" ).save( { "name" = "1 - object B" } );
+        }
+
+        transaction {
+          var result = entityNew( "oneA" ).save( { "name" = "1 - object A", "b" = b } );
+        }
+
+        var idA = result.getId( );
+        var idB = b.getId( );
+
+        var bInA = result.getB( );
+
+        expect( bInA )
+          .notToBeNull( );
+
+        var aInB = b.getA( );
+
+        expect( aInB )
+          .notToBeNull( );
+
+        expect( bInA.getId( ) )
+          .toBe( idB )
+          .notToBe( idA );
+
+        expect( aInB.getId( ) )
+          .toBe( idA )
+          .notToBe( idB );
+      } );
+
+      it( "Expects one-to-one connections to work on one object and one PK", function( ) {
+        var b = entityNew( "oneB" );
+
+        transaction {
+          b.save( { "name" = "2 - object B" } );
+        }
+
+        var a = entityNew( "oneA" );
+
+        transaction {
+          var result = a.save( { "name" = "2 - object A", b = b.getId( ) } );
+        }
+
+        var bInA = result.getB( );
+
+        expect( bInA )
+          .notToBeNull( );
+
+        var idA = result.getId( );
+
+        var aInB = bInA.getA( );
+
+        expect( aInB )
+          .notToBeNull( );
+
+        var idB = bInA.getId( );
+
+        expect( bInA.getId( ) )
+          .toBe( idB )
+          .notToBe( idA );
+
+        expect( aInB.getId( ) )
+          .toBe( idA )
+          .notToBe( idB );
+
+        expect( bInA.getName( ) )
+          .toBe( "2 - object B" );
+      } );
+
+      it( "Expects one-to-one connections to work on one object and one struct", function( ) {
+        var a = entityNew( "oneA" );
+
+        transaction {
+          var result = a.save( { "name" = "3 - object A", b = { "name" = "3 - object B" } } );
+        }
+
+        var bInA = result.getB( );
+
+        expect( bInA )
+          .notToBeNull( );
+
+        var idA = result.getId( );
+
+        var aInB = bInA.getA( );
+
+        expect( aInB )
+          .notToBeNull( );
+
+        var idB = bInA.getId( );
+
+        expect( bInA.getId( ) )
+          .toBe( idB )
+          .notToBe( idA );
+
+        expect( aInB.getId( ) )
+          .toBe( idA )
+          .notToBe( idB );
+
+        expect( bInA.getName( ) )
+          .toBe( "3 - object B" );
       } );
     } );
   }
