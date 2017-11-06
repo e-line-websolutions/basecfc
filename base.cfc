@@ -219,7 +219,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       var reverseCFCLookup = arrayFindNoCase( this.logFields, key )
         ? "#variables.instance.config.root#.model.logged"
-        : variables.instance.className;;
+        : variables.instance.className;
 
       savecontent variable="local.debugoutput" {
         param string property.fieldtype = "string";
@@ -433,7 +433,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
     * Find the corresponding field in the joined object (using the FKColumn)
     */
-  public string function getReverseField( required string cfc, required string fkColumn, boolean singular = true, string columnName = "fkColumn" ) {
+  public string function getReverseField( required string cfc, required string fkColumn, boolean singular = true ) {
     var field = 0;
     var fieldFound = 0;
     var propertiesWithCFC = structFindKey( variables.instance.properties, "cfc", "all" );
@@ -461,15 +461,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     for ( var property in propertiesWithCFC ) {
       field = property.owner;
 
-      if ( !structKeyExists( field, columnName ) ) {
-        field[ columnName ] = "";
+      if ( !structKeyExists( field, "fkColumn" ) ) {
+        field[ "fkColumn" ] = "";
       }
 
-      if ( field[ columnName ] != fkColumn || !( field[ columnName ] == fkColumn || field.cfc == cfc ) ) {
+      if ( field[ "fkColumn" ] != fkColumn || !( field[ "fkColumn" ] == fkColumn || field.cfc == cfc ) ) {
         continue;
       }
 
-      if ( field.cfc == cfc && field[ columnName ] == fkColumn ) {
+      if ( field.cfc == cfc && field[ "fkColumn" ] == fkColumn ) {
         fieldFound = 1;
         break;
       }
@@ -494,9 +494,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       fieldFound = 4;
     }
 
-
     if ( fieldFound == 0 ) {
       var logMessage = "getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.";
+
+      if ( request.context.debug ) {
+        writeOutput( logMessage );
+        writeDump( arguments );
+        abort;
+      }
+
       basecfcLog( logMessage, "fatal" );
       throw( logMessage, "basecfc.getReverseField" );
     }
@@ -528,8 +534,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * a serialized JSON object (a string) representation of this object
     * using Adam Tuttle's deORM() - see below
     */
-  public string function toString( ) {
-    return serializeJSON( deORM( this ) );
+  public string function toString( any data = this ) {
+    return serializeJSON( deORM( data ) );
   }
 
   /**
@@ -566,8 +572,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       for ( var el in data ) {
         arrayAppend( deWormed, deORM( el ) );
       }
-    } else {
-      deWormed = getMetadata( data );
     }
 
     return deWormed;
@@ -656,7 +660,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private array function toMany( formData, property, reverseCFCLookup, depth ) {
+  private array function toMany( struct formData, struct property, string reverseCFCLookup, numeric depth ) {
     var result = [ ];
 
     // Alias for set_ which overwrites linked data with new data
@@ -687,7 +691,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private any function toOne( nestedData, property, reverseCFCLookup, depth ) {
+  private any function toOne( any nestedData, struct property, string reverseCFCLookup, numeric depth ) {
     // save value and link objects together
     var fn = "set" & property.name;
     var skipToNextPropery = false;
@@ -722,6 +726,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             if ( !skipToNextPropery ) {
               if ( !objectToLink.isNew( ) ) {
                 updateStruct[ "#propertyEntityName#id" ] = objectToLink.getID( );
+                structDelete( updateStruct, "ID" );
               }
 
               updateStruct[ "add_#reverseField#" ] = this;
@@ -828,8 +833,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( request.context.debug && !isNull( nestedData ) ) {
         var dbugAttr = nestedData.toString( );
 
-        if ( structKeyExists( local, "updateStruct" ) ) {
-          dbugAttr = serializeJSON( updateStruct );
+        if ( !isNull( updateStruct ) ) {
+          dbugAttr = this.toString( updateStruct );
         }
 
         if ( isJSON( dbugAttr ) && !isBoolean( dbugAttr ) && !isNumeric( dbugAttr ) ) {
@@ -844,7 +849,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private string function oneToOne( nestedData, property, reverseCFCLookup, depth ) {
+  private string function oneToOne( any nestedData, struct property, string reverseCFCLookup, numeric depth ) {
     var propertyEntityName = property.entityName;
 
     if ( isStruct( nestedData ) && structKeyExists( nestedData, "__subclass" ) ) {
@@ -889,7 +894,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private array function toMany_add( workData, property, reverseCFCLookup, depth ) {
+  private array function toMany_add( any workData, struct property, string reverseCFCLookup, numeric depth ) {
     var result = [ ];
 
     if ( isSimpleValue( workData ) ) {
@@ -969,7 +974,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private array function toMany_remove( formData, property, reverseCFCLookup ) {
+  private array function toMany_remove( struct formData, struct property, string reverseCFCLookup ) {
     var result = [ ];
 
     var objectsToOverride = getObjectsToOverride( formData, property.name );
@@ -994,7 +999,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private struct function toMany_convertSetToAdd( formData, property ) {
+  private struct function toMany_convertSetToAdd( struct formData, struct property ) {
     var key = "set_#property.name#";
 
     if ( structKeyExists( formData, key ) ) {
@@ -1103,21 +1108,25 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   private struct function parseUpdateStruct( required any data, required component parseFor ) {
     var result = { };
 
-    if ( isValidGUID( data ) ) {
-      data = {
-        "#parseFor.getEntityName( )#id" = data
-      };
-    }
-
-    if ( isSimpleValue( data ) && len( trim( data ) ) && isJSON( data ) ) {
-      var tempValue = deserializeJSON( data );
-      if ( isStruct( tempValue ) ) {
-        data = tempValue;
+    if ( isSimpleValue( data ) && len( trim( data ) ) ) {
+      if ( isValidGUID( data ) ) {
+        data = {
+          "#parseFor.getEntityName( )#id" = data
+        };
+      } else if ( isJSON( data ) ) {
+        var tempValue = deserializeJSON( data );
+        if ( isStruct( tempValue ) ) {
+          data = tempValue;
+        }
       }
     }
 
     if ( isStruct( data ) && !isObject( data ) ) {
-      result = data;
+      for ( var key in data ) {
+        if ( !arrayFindNoCase( [ "VERSION", "LOGFIELDS", "LOGLEVELS", "SANITIZEDATATYPES" ], key ) ) {
+          result[ key ] = data[ key ];
+        }
+      }
     }
 
     return result;
