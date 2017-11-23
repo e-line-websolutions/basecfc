@@ -26,7 +26,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  this.version = "4.0";
+  this.version = "4.0.1";
   this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
   this.logLevels = listToArray( "debug,information,warning,error,fatal" );
   this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
@@ -174,9 +174,19 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( !structKeyExists( request, "basecfc-save" ) ) {
         request[ "basecfc-save" ] = true;
-        writeOutput(
-          '<script src="http://helper.e-line.nl/prettify/run_prettify.js"></script><style>td,th,h2{padding:3px;}table,td,th{border:1px solid ##8091A4}td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}.basecfc-debug{width:900px;margin:0 auto}.basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}.basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}.basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}.result{color:red}</style>'
-        );
+        writeOutput( '
+          <script src="http://helper.e-line.nl/prettify/run_prettify.js"></script>
+          <style>
+            td,th,h2{padding:3px;}
+            table,td,th{border:1px solid ##8091A4}
+            td,th{padding:3px;border-top:0;border-left:0;background-color:##B5BFCB}
+            .basecfc-debug{width:900px;margin:0 auto}
+            .basecfc-debug .call{font-family:monospace;border:2px solid ##264160; padding:5px; margin-bottom:15px}
+            .basecfc-debug h2{background:##3D5774;cursor:pointer;color:white;margin:0}
+            .basecfc-debug table{border-color:##8091A4;border-right:0;border-bottom:0}
+            .result{color:red}
+          </style>
+        ' );
       }
 
       if ( depth == 0 ) {
@@ -185,9 +195,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         display = '';
       }
 
-      writeOutput(
-        '<div class="call"><h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2><table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#><tr><th colspan="2">Name: "#getName( )#"</th></tr><tr><td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td></tr>'
-      );
+      writeOutput( '
+        <div class="call">
+          <h2 onclick="#collapse#">#depth#:#variables.instance.entityName#:#getID( )#</h2>
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" id="#debugid#"#display#>
+            <tr>
+              <th colspan="2">Name: "#getName( )#"</th>
+            </tr>
+            <tr>
+              <td colspan="2">Prep time: #getTickCount( ) - basecfctimer#ms</td>
+            </tr>
+      ' );
     }
 
     // This object can handle non-existing fields, so lets add those to the properties struct.
@@ -212,7 +230,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( skipProperty( skipMatrix ) ) {
         if ( request.context.debug ) {
-          writeOutput( '<tr style="color:dimgray"><th width="15%" valign="top" align="right">#property.name#</th><td>Skipped (#serializeJSON( skipMatrix )#)</td></tr>' );
+          writeOutput( '
+            <tr style="color:dimgray">
+              <th width="15%" valign="top" align="right">#property.name#</th>
+              <td>Skipped (#serializeJSON( skipMatrix )#)</td>
+            </tr>
+          ' );
         }
         continue;
       }
@@ -251,14 +274,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       if ( request.context.debug && len( trim( debugoutput ) ) ) {
         var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
-        writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">#debugoutput#<br/>#getTickCount( ) - propTimer#ms</td></tr>' );
+        writeOutput( '
+          <tr>
+            <th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th>
+            <td width="85%" id="#colID#">#debugoutput#<br/>#getTickCount( ) - propTimer#ms</td>
+          </tr>
+        ' );
       }
     }
 
     if ( request.context.debug ) {
-      writeOutput( '</table>' );
-      writeOutput( getTickCount( ) - basecfctimer & "ms<br />" );
-      writeOutput( '</div>' );
+      writeOutput( '
+          </table>
+          #getTickCount( )-basecfctimer# ms
+          <br />
+        </div>
+      ' );
     }
 
     // Process queued instructions
@@ -498,8 +529,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var logMessage = "getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.";
 
       if ( request.context.debug ) {
+        writeDump( form );
         writeOutput( logMessage );
         writeDump( arguments );
+        try { throw( "placeholder" ); } catch ( any e ) { writeDump( e ); }
         abort;
       }
 
@@ -1178,7 +1211,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
           if ( request.context.debug ) {
             instructionTimer = getTickCount( ) - instructionTimer;
-            basecfcLog( logMessage & " (t=#instructionTimer#)" );
+            var timerColor = instructionTimer > 50 ? ( instructionTimer > 250 ? 'red' : 'orange' ) : 'black';
+            basecfcLog( '<span style="color:#timerColor#">' & logMessage & ' (t=#instructionTimer#)</span>' );
             instructionTimers += instructionTimer;
           }
         }
