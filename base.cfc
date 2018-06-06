@@ -698,7 +698,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // Alias for set_ which overwrites linked data with new data
     if ( structKeyExists( formData, property.name ) ) {
-      formData[ "set_#property.name#" ] = duplicate( formData[ property.name ] );
+      formData[ "set_#property.name#" ] = formData[ property.name ];
       structDelete( formData, property.name );
     }
 
