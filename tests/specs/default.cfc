@@ -34,15 +34,15 @@ component extends="testbox.system.BaseSpec" {
         structDelete( variables, "obj" );
       } );
 
-      it( "Expects toString( ) to return a json representation of the entity.", function( ) {
-        expect( obj.toString( ))
+      it( "Expects toJson( ) to return a json representation of the entity.", function( ) {
+        expect( obj.toJson( ))
           .toBeString( )
           .notToBeNULL( )
           .toBeJSON( );
       } );
 
-      it( "Expects toString( ) to contain all properties of the entity.", function( ) {
-        expect( obj.toString( ))
+      it( "Expects toJson( ) to contain all properties of the entity.", function( ) {
+        expect( obj.toJson( ))
           .toInclude( '"sortorder"' )
           .toInclude( '"id"' )
           .toInclude( '"deleted"' )

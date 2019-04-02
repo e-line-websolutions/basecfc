@@ -56,7 +56,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       "validationReport" = [ ]
     };
 
-    if ( structKeyExists( url, "reload" ) ) {
+    if ( structKeyExists( url, "clear" ) ) {
       var allCacheIds = cacheGetAllIds( );
       if ( !arrayIsEmpty( allCacheIds ) ) {
         cacheRemove( arrayToList( allCacheIds ), false );
@@ -414,7 +414,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   /**
-    * Overrid default getter to generate a GUID to identify this object with.
+    * Override default getter to generate a GUID to identify this object with.
     */
   public string function getID( ) {
     return isNew( ) ? variables.instance.id : variables.id;
@@ -527,15 +527,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     if ( fieldFound == 0 ) {
       var logMessage = "getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.";
-
-      if ( request.context.debug ) {
-        writeDump( form );
-        writeOutput( logMessage );
-        writeDump( arguments );
-        try { throw( "placeholder" ); } catch ( any e ) { writeDump( e ); }
-        abort;
-      }
-
       basecfcLog( logMessage, "fatal" );
       throw( logMessage, "basecfc.getReverseField" );
     }
@@ -567,7 +558,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     * a serialized JSON object (a string) representation of this object
     * using Adam Tuttle's deORM() - see below
     */
-  public string function toString( any data = this ) {
+  public string function toJson( any data = this ) {
     return serializeJSON( deORM( data ) );
   }
 
@@ -864,10 +855,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       // debug output to show which function call was queued:
       if ( request.context.debug && !isNull( nestedData ) ) {
-        var dbugAttr = nestedData.toString( );
+        var dbugAttr = serializeJSON( nestedData );
 
         if ( !isNull( updateStruct ) ) {
-          dbugAttr = this.toString( updateStruct );
+          dbugAttr = serializeJSON( updateStruct );
         }
 
         if ( isJSON( dbugAttr ) && !isBoolean( dbugAttr ) && !isNumeric( dbugAttr ) ) {
@@ -1267,6 +1258,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var object = request.basecfc.queuedObjects[ objectId ];
       basecfcLog( "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#" );
       entitySave( object );
+    }
+
+    for ( var objectid in instructionsQueue ) {
+      var object = request.basecfc.queuedObjects[ objectId ];
+      ormEvictEntity( object.getEntityName( ), object.getId( ) );
     }
 
     if ( request.context.debug ) {
