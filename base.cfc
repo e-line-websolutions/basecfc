@@ -229,7 +229,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var skipMatrix = getSkipMatrix( property, formData );
 
       if ( skipProperty( skipMatrix ) ) {
-        if ( request.context.debug ) {
+        if ( request.context.debug && !property.name == '__subclass' ) {
           writeOutput( '
             <tr style="color:dimgray">
               <th width="15%" valign="top" align="right">#property.name#</th>
@@ -271,7 +271,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         }
       }
 
-      if ( request.context.debug && len( trim( debugoutput ) ) ) {
+      if ( request.context.debug && len( trim( debugoutput ) ) && !key == '__subclass' ) {
         var colID = formatAsGUID( createUuid( ) );
         var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
         writeOutput( '
@@ -855,7 +855,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       // debug output to show which function call was queued:
       if ( request.context.debug && !isNull( nestedData ) ) {
-        var dbugAttr = serializeJSON( nestedData );
+        try {
+          var dbugAttr = serializeJSON( nestedData );
+        } catch( any e ) {
+        }
 
         if ( !isNull( updateStruct ) ) {
           dbugAttr = serializeJSON( updateStruct );
@@ -1306,6 +1309,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param struct request.basecfc.instructionsOrder={};
     param struct request.basecfc.queuedInstructions={};
     param struct request.basecfc.queuedObjects={};
+
+    if ( command == 'set__subclass' ) {
+      return;
+    }
 
     var entityID = entity.getID( );
 
