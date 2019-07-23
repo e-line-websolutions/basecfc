@@ -34,8 +34,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   param request.appName="basecfc";
   param request.context.debug=false;
 
-
-
   // Constructor:
 
   /**
@@ -245,8 +243,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         : variables.instance.className;
 
       savecontent variable="local.debugoutput" {
-        param string property.fieldtype = "string";
-        param string property.dataType = "";
+        param string property.fieldtype="string";
+        param string property.dataType="";
 
         switch ( property.fieldtype ) {
           case "one-to-many":
