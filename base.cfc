@@ -46,12 +46,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.sortorder=0;
 
     variables.instance = {
-      "entities" = { },
-      "id" = formatAsGUID( createUUID( ) ),
-      "meta" = getMetaData( ),
-      "sanitationReport" = [ ],
-      "sessionFactory" = ORMGetSessionFactory( ),
-      "validationReport" = [ ]
+      'entities' = {},
+      'id' = formatAsGUID( createUUID() ),
+      'meta' = getMetadata(),
+      'sanitationReport' = [],
+      'sessionFactory' = ormGetSessionFactory(),
+      'validationReport' = []
     };
 
     if ( structKeyExists( url, "clear" ) ) {
@@ -60,8 +60,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         cacheRemove( arrayToList( allCacheIds ), false );
       }
     }
-
-    request.allEntities = getAllEntities( );
 
     if ( structKeyExists( request, "context" ) && isStruct( request.context ) ) {
       param request.context.config={};
@@ -346,8 +344,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     */
   public string function getEntityName( string className = variables.instance.className ) {
     var basicEntityName = listLast( className, '.' );
-    if ( structKeyExists( request.allEntities, basicEntityName ) ) {
-      return request.allEntities[ basicEntityName ].name;
+    var allEntities = getAllEntities( );
+    if ( structKeyExists( allEntities, basicEntityName ) ) {
+      return allEntities[ basicEntityName ].name;
     }
     return basicEntityName;
   }
@@ -357,8 +356,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     */
   public string function getTableName( string className = variables.instance.className ) {
     var basicEntityName = listLast( className, "." );
-    if ( structKeyExists( request.allEntities, basicEntityName ) ) {
-      return request.allEntities[ basicEntityName ].table;
+    var allEntities = getAllEntities( );
+    if ( structKeyExists( allEntities, basicEntityName ) ) {
+      return allEntities[ basicEntityName ].table;
     }
     return basicEntityName;
   }
@@ -1693,10 +1693,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
    * TODO: function documentation
    */
-  private struct function getAllEntities( ) {
-    if ( structKeyExists( request, "allEntities" ) ) {
-      return request.allEntities;
-    }
+  private struct function getAllEntities() {
+    // if ( structKeyExists( request, "allEntities" ) && !isNull( request.allEntities ) ) {
+    //   return request.allEntities;
+    // }
 
     var cachedEntities = cacheGet( "allEntities_#request.appName#" );
 
