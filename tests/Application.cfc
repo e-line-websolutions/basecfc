@@ -15,6 +15,7 @@ component {
   this.ORMSettings = {
     "datasource" = "basecfc",
     "dbCreate" = "dropcreate",
+    "sqlScript" = "nuke.sql",
     "cfcLocation" = expandPath( "./model/beans" )
   };
 
