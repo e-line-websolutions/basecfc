@@ -679,6 +679,56 @@ component extends="testbox.system.BaseSpec" {
 
         expect( allValidationtests ).toHaveLength( 1 );
       } );
+
+      it( "Expects baseCFC to save successfully using JSON data", function( ) {
+        var testdata = serializeJSON( { 'hello' = 'world' } );
+
+        transaction {
+          var obj = entityNew( 'test' );
+          entitySave( obj );
+          obj.save( { jsontest = testdata } );
+        }
+
+        var result = queryExecute(
+          'SELECT jsontest->>''hello''::varchar AS test FROM test WHERE jsontest @> ''#testdata#''',
+          {},
+          { datasource = 'basecfc' }
+        );
+
+        expect( result.test[ 1 ] ).toBe( 'world' );
+      } );
+
+      it( 'Expects baseCFC to work with complex JSON data', function() {
+        var testdata = '
+          {
+            "arr": [
+              {
+                "id": "myId",
+                "ids": ["anotherId"],
+                "items": [
+                  {
+                    "id": "lastId"
+                  }
+                ]
+              }
+            ]
+          }
+        ';
+
+        transaction {
+          var obj = entityNew( 'test' );
+          entitySave( obj );
+          obj.save( { jsontest = testdata } );
+        }
+
+        var result = queryExecute(
+          'SELECT jsontest ##>> ''{arr,0,id}'' AS test FROM test WHERE jsontest @> ''{"arr":[]}''',
+          {},
+          { datasource = 'basecfc' }
+        );
+
+        expect( result.test[ 1 ] ).toBe( 'myId' );
+      } );
     } );
 
     describe( "Tests mustang logging integration", function( ) {

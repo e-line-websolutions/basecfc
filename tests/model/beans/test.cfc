@@ -8,4 +8,5 @@ component extends="basecfc.base" persistent=true {
   property name="more" fieldtype="many-to-one" cfc="root.model.beans.more" fkColumn="moreid";
   property name="duplicate" fieldtype="many-to-one" cfc="root.model.beans.more" fkColumn="duplicateid";
   property name="test";
+  property name="jsontest" datatype="json" length="8000";
 }

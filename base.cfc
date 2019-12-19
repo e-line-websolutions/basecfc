@@ -1257,7 +1257,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     for ( var objectid in instructionsQueue ) {
       var object = request.basecfc.queuedObjects[ objectId ];
-      basecfcLog( "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#" );
+      // basecfcLog( "Saving #object.getEntityName( )# - #object.getName( )# - #object.getId( )#" );
       entitySave( object );
     }
 
