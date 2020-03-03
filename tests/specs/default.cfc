@@ -14,7 +14,7 @@ component extends="testbox.system.BaseSpec" {
   }
 
   function run( ) {
-    describe( "Test object instantiation", function( ) {
+    describe( title="Test object instantiation", body=function( ) {
       it( "Expects baseCFC Objects to throw an error when missing mandatory properties", function( ) {
         expect( function( ) { var newObject = entityNew( "test" ); } )
           .notToThrow( );
@@ -24,14 +24,14 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Test helper methods.", function( ) {
+    describe( title="Test helper methods.", body=function( ) {
       beforeEach( function( currentSpec ) {
         obj = entityNew( "test" );
         obj.save( { name="helperMethods" } );
       } );
 
       afterEach( function( currentSpec ) {
-        structDelete( variables, "obj" );
+        obj = javacast( 'null', 0 );
       } );
 
       it( "Expects toJson( ) to return a json representation of the entity.", function( ) {
@@ -140,7 +140,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Test basic save function.", function( ) {
+    describe( title="Test basic save function.", body=function( ) {
       beforeEach( function( currentSpec ) {
         obj = entityNew( "test" ).save( { name = "InvalidNameBasicSave" } );
       } );
@@ -181,7 +181,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Test save function with one-to-many relations.", function( ) {
+    describe( title="Test save function with one-to-many relations.", body=function( ) {
       beforeEach( function( currentSpec ) {
         obj = entityNew( "test" ).save( { name = "InvalidName" } );
       } );
@@ -403,7 +403,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Test save function with many-to-one relations.", function( ) {
+    describe( title="Test save function with many-to-one relations.", body=function( ) {
       beforeEach( function( currentSpec ) {
         obj = entityNew( "test" ).save( { name="InvalidName" } );
       } );
@@ -506,7 +506,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Test save function with many-to-many relations.", function( ) {
+    describe( title="Test save function with many-to-many relations.", body=function( ) {
       it( "Expects save( ) to work with many-to-many relations", function( ){
         transaction {
           var sideA = entityNew( "multiple" ).save( {name="sideA"} );
@@ -536,7 +536,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "delete and restore tests", function( ) {
+    describe( title="delete and restore tests", body=function( ) {
       it ( "Expects restore() to set deleted flag to false", function () {
         var entityToDelete = entityNew( "test" );
 
@@ -591,7 +591,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Transaction Tests", function( ) {
+    describe( title="Transaction Tests", body=function( ) {
       beforeEach( function( currentSpec ) {
         var allTests = entityLoad( "test" );
         var allMores = entityLoad( "more" );
@@ -637,7 +637,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Data type tests", function( ) {
+    describe( title="Data type tests", body=function( ) {
       it( "Expects baseCFC to error using invalid data", function( ) {
         var validator = new root.model.services.validation( );
         var obj = entityNew( "validationtests" );
@@ -731,7 +731,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Tests mustang logging integration", function( ) {
+    describe( title="Tests mustang logging integration", body=function( ) {
       it( "Expects baseCFC to save a logentry when an object inherits from logged", function() {
         request.context.config.log = true;
 
@@ -752,7 +752,7 @@ component extends="testbox.system.BaseSpec" {
       } );
     } );
 
-    describe( "Tests one-to-one connections", function( ) {
+    describe( title="Tests one-to-one connections", body=function( ) {
       it( "Expects one-to-one connections to work on two objects", function( ) {
         transaction {
           var b = entityNew( "oneB" ).save( { "name" = "1 - object B" } );
