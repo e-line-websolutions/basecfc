@@ -1,0 +1,30 @@
+{
+  "adminPassword": "admin",
+  "robustExceptionEnabled": true,
+  "cacheDefaultObject": "default",
+  "caches": {
+    "default": {
+      "class": "lucee.runtime.cache.ram.RamCache",
+      "custom": {
+        "timeToIdleSeconds": "0",
+        "timeToLiveSeconds": "0"
+      },
+      "readOnly": "false",
+      "storage": "false",
+      "type": "RAM"
+    }
+  },
+  "datasources": {
+    "basecfc": {
+      "class": "org.postgresql.Driver",
+      "database": "basecfc",
+      "dbdriver": "PostgreSql",
+      "custom":"stringtype=unspecified",
+      "dsn": "jdbc:postgresql://{host}:{port}/{database}?{custom}",
+      "host": "localhost",
+      "password": "test",
+      "port": "5432",
+      "username": "test"
+    }
+  }
+}

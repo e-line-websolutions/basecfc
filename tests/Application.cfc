@@ -1,33 +1,46 @@
 component {
-  this.name = "basecfctests";
-
-  this.root = replace( getDirectoryFromPath( getCurrentTemplatePath( ) ), "\", "/", "all" );
-  this.basecfcRoot = listDeleteAt( this.root, listLen( this.root, "/" ), "/" );
+  this.name = 'basecfc_test_1001';
+  this.root = getDirectoryFromPath( getCurrentTemplatePath() ).replace( '\', '/', 'all' );
+  this.basecfcRoot = this.root.listDeleteAt( this.root.listLen( '/' ), '/' );
 
   this.mappings = {
-    "/root" = this.root,
-    "/basecfc" = this.basecfcRoot,
-    "/testbox" = expandPath( "../../testbox" ),
-    "/hyrule" = expandPath( "../../hyrule" )
+    '/root' = this.root,
+    '/basecfc' = this.basecfcRoot,
+    '/framework' = expandPath( '../../thirdparty/frameworks' ),
+    '/mustang' = expandPath( '../../mustang-shared' ),
+    '/testbox' = expandPath( '../../testbox' ),
+    '/hyrule' = expandPath( '../../hyrule' )
   };
 
-  this.ORMEnabled = true;
-  this.ORMSettings = {
-    "datasource" = "basecfc",
-    "dbCreate" = "dropcreate",
-    "sqlScript" = "nuke.sql",
-    "cfcLocation" = expandPath( "./model/beans" )
-  };
+  this.javaSettings.loadPaths = [ this.mappings[ '/mustang' ] & '/lib/java' ];
 
-  public void function onRequestStart( ) {
-    ORMReload( );
+  this.ormSettings.datasource = 'basecfc';
+  this.ormSettings.CFCLocation = this.mappings[ '/root' ] & 'orm';
+  this.ormSettings.DBCreate = 'dropcreate';
+  this.ormSettings.secondaryCacheEnabled = false;
+  this.ormSettings.useDBForMapping = false;
 
-    request.appName = this.name;
-    request.context = {
-      "debug" = ( structKeyExists( url, "debug" ) ? url.debug : false ),
-      "config" = {
-        "logLevel" = "debug"
-      }
-    };
+  this.ormSettings.autoManageSession = false;
+  this.ormSettings.flushAtRequestEnd = false;
+
+  // this.ormSettings.cacheConfig = 'ehcache-config_ORM__basecfc.xml';
+  this.ormenabled = true;
+
+  // // this.ormsettings.sqlscript = 'nuke.sql';
+
+
+  function onRequest() {
+    var mstng = new mustang.base({});
+
+    request.appName = "basecfc";
+    request.context.config.root = 'basecfc.tests';
+    ormReload();
+    request.allOrmEntities = mstng.listAllOrmEntities( this.ormSettings.CFCLocation );
+
+    param url.reporter="simple";
+    param url.directory="root.specs";
+    param url.recurse=true;
+
+    include "/testbox/system/runners/HTMLRunner.cfm";
   }
 }

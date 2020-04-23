@@ -2,6 +2,7 @@
     "app":{
         "cfengine":"lucee"
     },
+    "name":"basecfc-tests-lucee",
     "server":{
         "defaults":{
             "app":{
