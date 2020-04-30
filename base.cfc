@@ -1122,12 +1122,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // per object
     instructionsQueue.each( function( objectid, objectInstructions ) {
       var object = request.basecfc.queuedObjects[ objectid ];
+      var sortedCommands = sortCommands( request.basecfc.instructionsOrder[ objectid ] );
 
       // per command
-      sortCommands( request.basecfc.instructionsOrder[ objectid ] ).each( function( command ) {
+      sortedCommands.each( function( command ) {
+        var instructionsPerCommand = objectInstructions[ command ];
 
         // per value
-        objectInstructions[ command ].each( function( key, value ) {
+        instructionsPerCommand.each( function( key, value ) {
           var logValue = isSimpleValue( value )
                 ? value
                 : isObject( value )
@@ -1232,7 +1234,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       'remCommands' = [],
       'setCommands' = [],
       'addCommands' = []
-    }
+    };
 
     commands.each( function( command ) {
       tmp[ command.left( 3 ) & 'Commands' ].append( command );
