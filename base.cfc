@@ -51,12 +51,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   */
   public any function save( required struct formData = { }, numeric depth = 0, component validationService, component sanitationService ) {
     var basecfctimer = getTickCount( );
+
     // objects using .save() must be initialised using the constructor
-    if ( !variables.keyExists( 'instance' ) ) {
-      var logMessage = 'Basecfc not initialised';
-      basecfcLog( logMessage, 'fatal' );
-      throw( logMessage, 'basecfc.global' );
-    }
+    verifySetup();
 
     // Hard coded depth limit
     if ( depth > 10 ) {
@@ -85,8 +82,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       request.basecfc = {
         'name' = '_basecfc_#hash(createUuid())#',
         'timers' = {},
-        'instructionsOrder' = [:],
-        'queuedInstructions' = [:],
+        'instructionsOrder' = {}, // should be ordered, but cf11 doesn't have this feature.
+        'queuedInstructions' = {}, // should be ordered, but cf11 doesn't have this feature.
         'queuedObjects' = { '#entityID()#' = this }
       };
 
@@ -165,18 +162,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var skipMatrix = getSkipMatrix( property, formData, depth );
 
         if ( skipProperty( skipMatrix ) ) {
-          if ( request.context.debug && !property.name == '__subclass' ) {
-            writeOutput( '
-              <tr style="color:dimgray">
-                <th width="15%" valign="top" align="right">#property.name#</th>
-                <td>Skipped (#serializeJSON( skipMatrix )#)</td>
-              </tr>
-            ' );
-          }
           continue;
         }
 
-        var reverseCFCLookup = arrayContainsNoCase( this.logFields, key )
+        var reverseCFCLookup = this.logFields.findNoCase( key )
           ? getORMBase() & '.logged'
           : variables.instance.className;
 
@@ -198,20 +187,21 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               if ( formData.keyExists( property.name ) ) var valueToLog = toOne( formData[ property.name ], property, reverseCFCLookup, depth );
           }
 
+          // log changes if value is not empty and if field is not one of the standard log fields
           if ( !isNull( valueToLog ) && !this.logFields.findNoCase( property.name ) ) {
             savedState[ property.name ] = valueToLog;
+          } else if ( request.context.debug ) {
+            writeOutput( '<br>not logging anything for "#property.name#" (#isNull(valueToLog)?'null':'not null'#/#this.logFields.findNoCase( property.name )#)' );
           }
         }
 
         if ( request.context.debug && len( trim( debugoutput ) ) && !key == '__subclass' ) {
           var colID = formatAsGUID( createUUID( ) );
           var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
-          writeOutput( '
-            <tr>
-              <th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th>
-              <td width="85%" id="#colID#">#debugoutput#<br/>#property.name#: #getTickCount() - propTimer#ms.</td>
-            </tr>
-          ' );
+          writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">' );
+          writeOutput( debugoutput.len() ? '#debugoutput#<br>' : '' );
+          writeOutput( 'save() - #property.name#: #getTickCount() - propTimer#ms.' );
+          writeOutput( '</td></tr>' );
         }
       }
     }
@@ -420,6 +410,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * Find the corresponding field in the joined object (using the FKColumn)
   */
   public string function getReverseField( required string cfc, required string fkColumn, boolean singular = true ) {
+    var t = getTickCount();
     var field = 0;
     var fieldFound = 0;
     var propertiesWithCFC = variables.instance.properties.findKey( 'cfc', 'all' );
@@ -501,6 +492,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       result = field.singularName;
     }
 
+    if ( request.context.debug ) writeOutput( '<br>getReverseField() #getTickCount()-t#ms.' );
+
     return result;
   }
 
@@ -546,7 +539,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         ) ) ) {
           continue;
         }
-        deWormed[ prop.name ] = evaluate( "data.get#prop.name#()" );
+        deWormed[ prop.name ] = invoke( data, 'get#prop.name#' );
+        if ( prop.name contains '`' ) {
+          writeDump(deWormed[ prop.name ]);abort;
+        }
       }
     } else if ( isStruct( data ) ) {
       for ( var key in data ) {
@@ -570,7 +566,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   */
   public any function safeGet( prop ) {
     try {
-      var result = evaluate( "get#prop#()" );
+      var result = invoke( this, 'get#prop#' );
 
       if ( isObject( result ) ) {
         return result.getName( );
@@ -590,6 +586,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   public struct function getInstanceVariables( ) {
+    verifySetup();
+
     var result = duplicate( variables.instance );
 
     structDelete( result, "meta" );
@@ -634,6 +632,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private array function toMany( struct formData, struct property, string reverseCFCLookup, numeric depth ) {
+    var t = getTickCount();
     var result = [];
 
     // Alias for set_ which overwrites linked data with new data
@@ -658,6 +657,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       result.addAll( toMany_add( formData[ key ], property, reverseCFCLookup, depth ) );
     }
 
+    if ( request.context.debug ) writeOutput( '<br>toMany() #getTickCount()-t#ms.' );
+
     return result;
   }
 
@@ -666,6 +667,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   */
   private any function toOne( any nestedData, struct property, string reverseCFCLookup, numeric depth ) {
     // save value and link objects together
+    var t = getTickCount();
     var fn = "set" & property.name;
     var skipToNextPropery = false;
 
@@ -678,16 +680,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       var objectToLink = toComponent( nestedData, propertyEntityName, property.cfc );
 
+      if ( request.context.debug ) writeOutput( '<br>toOne() 1. #getTickCount()-t#ms.' );
+
       if ( !isNull( objectToLink ) ) {
         if ( isObjectActionInQueue( fn, objectToLink ) ) {
           basecfcLog( ' -> exit isObjectActionInQueue' );
           skipToNextPropery = true;
         }
 
+        if ( request.context.debug ) writeOutput( '<br>toOne() 2. #getTickCount()-t#ms.' );
+
         if ( !skipToNextPropery ) {
           queueInstruction( this, fn, objectToLink );
 
           var reverseField = objectToLink.getReverseField( reverseCFCLookup, property.fkcolumn );
+
+          if ( request.context.debug ) writeOutput( '<br>toOne() 3. #getTickCount()-t#ms.' );
 
           if ( !skipToNextPropery ) {
             var updateStruct = parseUpdateStruct( nestedData, objectToLink );
@@ -711,18 +719,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               // Go down the rabbit hole:
               nestedData = objectToLink.save( depth = depth + 1, formData = updateStruct );
 
-              if ( !isNull( nestedData ) ) valueToLog = nestedData.getName();
+              if ( !isNull( nestedData ) ) var valueToLog = nestedData.getName();
             } else if ( request.context.debug ) {
-              writeOutput( "nothing to update" );
+              writeOutput( "<br>nothing to update" );
             }
           } else if ( request.context.debug ) {
-            writeOutput( "already in object" );
+            writeOutput( "<br>already in object" );
           }
         } else if ( request.context.debug ) {
-          writeOutput( "already queued" );
+          writeOutput( "<br>already queued" );
         }
       } else {
-        valueToLog = "removed";
+        var valueToLog = "removed";
       }
     } else {
       if ( property.dataType == "json" && !isSimpleValue( nestedData ) ) {
@@ -744,6 +752,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         if ( request.basecfc.keyExists( "sanitationService" ) && this.sanitizeDataTypes.findNoCase( dataType ) ) {
           var dirtyValue = duplicate( nestedData );
           var sanitationResult = request.basecfc.sanitationService.sanitize( nestedData, dataType );
+
+          if ( request.context.debug ) writeOutput( '<br>toOne() 4. #getTickCount()-t#ms.' );
 
           nestedData = sanitationResult.value;
 
@@ -787,7 +797,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
           queueInstruction( this, fn, nestedData );
 
-          valueToLog = left( nestedData, 255 );
+          var valueToLog = left( nestedData, 255 );
         }
       }
     }
@@ -801,6 +811,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           writeOutput( '<p>#fn#( null )</p>' );
         }
       }
+    }
+
+    if ( request.context.debug ) writeOutput( '<br>toOne() #getTickCount()-t#ms.' );
+
+    if ( !isNull( valueToLog ) ) {
+      return valueToLog;
     }
   }
 
@@ -853,6 +869,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private array function toMany_add( any workData, struct property, string reverseCFCLookup, numeric depth ) {
+    var t = getTickCount();
     var result = [ ];
     var fn = "add#propertyName( property )#";
 
@@ -920,10 +937,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           basecfcLog( 'calling: o2m #propertyEntityName#.save(#depth + 1#)' );
         }
 
+        if ( request.context.debug ) writeOutput( '<br>toMany_add() -> save() #getTickCount()-t#ms.' );
+
         // Go down the rabbit hole:
         result.append( objectToLink.save( depth = depth + 1, formData = updateStruct ) );
       }
     } );
+
+    if ( request.context.debug ) writeOutput( '<br>toMany_add() #getTickCount()-t#ms.' );
 
     return result;
   }
@@ -932,6 +953,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private array function toMany_remove( struct formData, struct property, string reverseCFCLookup ) {
+    var t = getTickCount();
     var result = [ ];
 
     var objectsToOverride = getObjectsToOverride( formData, property.name );
@@ -950,6 +972,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       arrayAppend( result, "#this.getName()#.remove#propertyName( property )#(#objectToOverride.getName()#)" );
     }
 
+    if ( request.context.debug ) writeOutput( '<br>toMany_remove( formData, #property.name#, #reverseCFCLookup# ) - #getTickCount()-t#ms.' );
+
     return result;
   }
 
@@ -957,6 +981,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private struct function toMany_convertSetToAdd( struct formData, struct property ) {
+    var t = getTickCount();
     var key = "set_#property.name#";
 
     if ( structKeyExists( formData, key ) ) {
@@ -996,6 +1021,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       structDelete( formData, "set_#property.name#" );
     }
+
+    if ( request.context.debug ) writeOutput( '<br>toMany_convertSetToAdd() #getTickCount()-t#ms.' );
 
     return formData;
   }
@@ -1073,6 +1100,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * Parses a JSON string into a struct (or passes through the given struct)
   */
   private struct function parseUpdateStruct( required any data, required component parseFor ) {
+    var t = getTickCount();
     var result = {};
 
     if ( isObject( data ) ) {
@@ -1098,10 +1126,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         'LOGLEVELS',
         'SANITIZEDATATYPES'
       ];
-      return data.filter( function( key ) {
+      result = data.filter( function( key ) {
         return !ignoreTheseKeys.findNoCase( key );
       } );
     }
+
+    if ( request.context.debug ) writeOutput( '<br>parseUpdateStruct() #getTickCount()-t#ms.' );
 
     // could return an empty struct:
     return result;
@@ -1259,9 +1289,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * are taking place
   */
   private void function queueInstruction( required component entity, required string command, required any value, numeric idx ) {
-    param struct request.basecfc.instructionsOrder=[:];
-    param struct request.basecfc.queuedInstructions=[:];
-    param struct request.basecfc.queuedObjects=[:];
+    param struct request.basecfc.instructionsOrder={}; // should be ordered, but cf11 doesn't have this feature.
+    param struct request.basecfc.queuedInstructions={}; // should be ordered, but cf11 doesn't have this feature.
+    param struct request.basecfc.queuedObjects={}; // should be ordered, but cf11 doesn't have this feature.
 
     if ( command == 'set__subclass' ) {
       return;
@@ -1274,15 +1304,15 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( !request.basecfc.instructionsOrder.keyExists( entityID ) ) {
-      request.basecfc.instructionsOrder[ entityID ] = [:];
+      request.basecfc.instructionsOrder[ entityID ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
     if ( !request.basecfc.queuedInstructions.keyExists( entityID ) ) {
-      request.basecfc.queuedInstructions[ entityID ] = [:];
+      request.basecfc.queuedInstructions[ entityID ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
     if ( !request.basecfc.queuedInstructions[ entityID ].keyExists( command ) ) {
-      request.basecfc.queuedInstructions[ entityID ][ command ] = [:];
+      request.basecfc.queuedInstructions[ entityID ][ command ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
     if ( isObject( value ) ) {
@@ -1320,10 +1350,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * component (or passes along the given component)
   */
   private any function toComponent( required any variable, required string entityName, required string cfc ) {
-    try {
-      var parsedVar = variable;
+    var t = getTickCount();
+    var parsedVar = variable;
 
+    try {
       if ( isObject( parsedVar ) && isInstanceOf( parsedVar, cfc ) ) {
+        if ( request.context.debug ) writeOutput( '<br>toComponent() #getTickCount()-t#ms. (early exit)' );
         return parsedVar;
       }
 
@@ -1339,6 +1371,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( isStruct( parsedVar ) ) {
         if ( structIsEmpty( parsedVar ) ) {
+          if ( request.context.debug ) writeOutput( '<br>toComponent() #getTickCount()-t#ms. (early exit)' );
           return;
         }
 
@@ -1368,6 +1401,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( isObject( objectToLink ) && isInstanceOf( objectToLink, "basecfc.base" ) ) {
+        if ( request.context.debug ) writeOutput( '<br>toComponent() #getTickCount()-t#ms. (early exit)' );
         return objectToLink;
       }
 
@@ -1402,6 +1436,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       throw( logMessage, "basecfc.toComponent" );
     }
+
+    if ( request.context.debug ) writeOutput( '<br>toComponent() #getTickCount()-t#ms.' );
   }
 
   /**
@@ -1419,7 +1455,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       return;
     }
 
-    var levelThreshold = arrayFindNoCase( this.logLevels, variables.instance.config.logLevel );
+    var instanceLevel = isNull( variables.instance.config.logLevel ) ? 'debug' : variables.instance.config.logLevel;
+
+    var levelThreshold = arrayFindNoCase( this.logLevels, instanceLevel );
 
     if ( requestedLevel >= levelThreshold ) {
       writeLog( text = text, type = level, file = file );
@@ -1664,6 +1702,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   private boolean function objectsAreadyLinked( component otherObj, struct property, string otherField, numeric depth ) {
+    var t = getTickCount();
+
     // NB: lucee doesn't want a property in the has() function when called on a to-one relation, also, it's fucking slow.
     param property.fieldtype='';
 
@@ -1671,15 +1711,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       case 'one-to-one':
       case 'many-to-one':
         var linkeObjectHasthisObject = invoke( otherObj, 'has#otherField#' );
+        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 1: #getTickCount()-t#ms.' );
         break;
 
       case 'one-to-many':
       case 'many-to-many':
-        var hqlLinkedObjects = ormExecuteQuery( '
-          SELECT COUNT(*) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :thisId AND r.id = :otherId
-        ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } );
-        var linkeObjectHasthisObject = hqlLinkedObjects[ 1 ];
-        // var linkeObjectHasthisObject = invoke( otherObj, 'has#otherField#', this );
+        var linkeObjectHasthisObject = server.keyExists( 'lucee' )
+          ? ormExecuteQuery( '
+              SELECT COUNT(l.id) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :thisId AND r.id = :otherId
+            ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } ).first()
+          : invoke( otherObj, 'has#otherField#', this );
+        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 2: #getTickCount()-t#ms.' );
         break;
     }
 
@@ -1688,17 +1730,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       case 'one-to-one':
       case 'many-to-one':
         var thisObjectHasLinkedObject = invoke( this, 'has#propertyName( property )#' );
+        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 3: #getTickCount()-t#ms.' );
         break;
 
       case 'one-to-many':
       case 'many-to-many':
-        var hqlLinkedObjects = ormExecuteQuery( '
-          SELECT COUNT(*) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :otherId AND r.id = :thisId
-        ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } );
-        var thisObjectHasLinkedObject = hqlLinkedObjects[ 1 ];
-        // var thisObjectHasLinkedObject = invoke( this, 'has#propertyName( property )#', otherObj );
+        var linkeObjectHasthisObject = server.keyExists( 'lucee' )
+          ? ormExecuteQuery( '
+              SELECT COUNT(l.id) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :otherId AND r.id = :thisId
+            ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } ).first()
+          : invoke( this, 'has#propertyName( property )#', otherObj );
+        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 4: #getTickCount()-t#ms.' );
         break;
     }
+
 
     if ( isNull( thisObjectHasLinkedObject ) || isNull( linkeObjectHasthisObject ) ) return false;
 
@@ -1833,7 +1878,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     validateBaseProperties( );
 
     // overwrite instance variables:
-    if ( isStruct( request?.context ) && isStruct( request?.context?.config ) ) {
+    if ( request.keyExists( 'context' ) &&
+         isStruct( request.context ) &&
+         request.context.keyExists( 'config' ) &&
+         isStruct( request.context.config ) ) {
       param request.context.config={};
       param request.context.config.log=false;
       param request.context.config.root="root";
@@ -1855,5 +1903,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     variables.instance.append( arguments, true );
 
     param request.appName="basecfc";
+  }
+
+  private void function verifySetup() {
+    if ( !variables.keyExists( 'instance' ) ) {
+      var logMessage = 'Basecfc not initialised';
+      basecfcLog( logMessage, 'fatal' );
+      throw( logMessage, 'basecfc.global' );
+    }
   }
 }
