@@ -1151,6 +1151,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // per object
     instructionsQueue.each( function( objectid, objectInstructions ) {
+      if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
+      if ( !request.basecfc.instructionsOrder.keyExists( objectid ) ) { continue; }
+
       var object = request.basecfc.queuedObjects[ objectid ];
       var sortedCommands = sortCommands( request.basecfc.instructionsOrder[ objectid ] );
 
@@ -1230,8 +1233,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     } );
 
-    instructionsQueue.each( function( objectId ) {
-      var object = request.basecfc.queuedObjects[ objectId ];
+    instructionsQueue.each( function( objectid ) {
+      if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
+      var object = request.basecfc.queuedObjects[ objectid ];
       if ( object.isNew() ) entitySave( object );
       ormEvictEntity( object.getEntityName(), object.getId() );
     } );

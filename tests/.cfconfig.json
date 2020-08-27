@@ -1,6 +1,5 @@
 {
   "adminPassword": "admin",
-  "robustExceptionEnabled": true,
   "cacheDefaultObject": "default",
   "caches": {
     "default": {
@@ -17,14 +16,15 @@
   "datasources": {
     "basecfc": {
       "class": "org.postgresql.Driver",
+      "custom": "stringtype=unspecified",
       "database": "basecfc",
       "dbdriver": "PostgreSql",
-      "custom":"stringtype=unspecified",
-      "dsn": "jdbc:postgresql://{host}:{port}/{database}?{custom}",
+      "dsn": "jdbc:postgresql://{host}:{port}/{database}/?{custom}",
       "host": "localhost",
       "password": "test",
       "port": "5432",
       "username": "test"
     }
-  }
+  },
+  "robustExceptionEnabled": true
 }
