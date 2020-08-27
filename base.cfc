@@ -684,7 +684,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( !isNull( objectToLink ) ) {
         if ( isObjectActionInQueue( fn, objectToLink ) ) {
-          basecfcLog( ' -> exit isObjectActionInQueue' );
           skipToNextPropery = true;
         }
 
@@ -908,11 +907,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var reverseField = objectToLink.getReverseField( reverseCFCLookup, fkColumn );
 
         if ( objectsAreadyLinked( objectToLink, property, reverseField, depth ) ) {
-          basecfcLog( ' -> exit objectsAreadyLinked' ); continue;
+          continue;
         } // EARLY EXIT
 
         if ( isObjectActionInQueue( fn, objectToLink ) ) {
-          basecfcLog( ' -> exit isObjectActionInQueue' ); continue;
+          continue;
         } // EARLY EXIT
 
         queueInstruction( this, fn, objectToLink, idx );
@@ -920,7 +919,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var updateStruct = parseUpdateStruct( nestedData, objectToLink );
 
         if ( !updateStruct.count() ) {
-          basecfcLog( ' -> exit parseUpdateStruct' ); continue;
+          continue;
         } // EARLY EXIT
 
         if ( !objectToLink.isNew() ) {
