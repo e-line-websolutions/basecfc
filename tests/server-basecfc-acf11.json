@@ -1,0 +1,13 @@
+{
+    "app":{
+        "cfengine":"adobe@11"
+    },
+    "name":"basecfc-acf11",
+    "server":{
+        "defaults":{
+            "app":{
+                "cfengine":"adobe@2016"
+            }
+        }
+    }
+}
