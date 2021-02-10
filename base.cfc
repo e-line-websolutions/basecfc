@@ -1151,11 +1151,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( "~~ start processing queue for #variables.instance.meta.name# ~~" );
     }
 
-    var instructionsQueue = request.basecfc.queuedInstructions;
-    var idx = 0;
+    var instructionOrder = request.basecfc.queuedInstructions.keyArray();
+    instructionOrder.sort( 'textNoCase' );
 
     // per object
-    instructionsQueue.each( function( objectid, objectInstructions ) {
+    instructionOrder.each( function( objectid, idx ) {
+      var objectInstructions = request.basecfc.queuedInstructions[ objectid ];
+
       if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
       if ( !request.basecfc.instructionsOrder.keyExists( objectid ) ) { continue; }
 
@@ -1187,7 +1189,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           if ( request.context.debug ) {
             instructionTimer = getTickCount( ) - instructionTimer;
             var timerColor = instructionTimer > 50 ? ( instructionTimer > 250 ? 'red' : 'orange' ) : 'black';
-            basecfcLog( logMessage & ' (t=#instructionTimer#, n=#++idx#)', 'fatal' );
+            basecfcLog( logMessage & ' (t=#instructionTimer#, n=#idx++#)', 'fatal' );
             instructionTimers += instructionTimer;
           }
         });
@@ -1238,7 +1240,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     } );
 
-    instructionsQueue.each( function( objectid ) {
+    instructionOrder.each( function( objectid ) {
       if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
       var object = request.basecfc.queuedObjects[ objectid ];
       if ( object.isNew() ) entitySave( object );
