@@ -5,62 +5,61 @@ component extends=basecfc.base persistent=true {
 
   property name="relatedentity" fieldtype="many-to-one" cfc="basecfc.tests.orm.logging.logged" fkcolumn="entityid";
   property name="logaction" fieldtype="many-to-one" cfc="basecfc.tests.orm.logging.logaction" fkcolumn="logactionid";
-  property name="savedstate" length=4000;
+  property name="savedstate" type="string";
   property name="by" fieldtype="many-to-one" cfc="basecfc.tests.orm.logging.contact" fkcolumn="contactid";
   property name="dd" ormtype="timestamp";
   property name="ip" length=15;
 
-  public any function enterintolog( string action = "init", struct newstate = { }, component entitytolog ) {
-    if ( isnull( entitytolog ) && !isnull( variables.relatedentity ) ) {
+  public string function getSavedState() {
+    return variables.savedstate ?: '{}';
+  }
+
+  public any function enterIntoLog( string action = 'init', struct newstate = {}, component entitytolog ) {
+    if ( isNull( entitytolog ) && !isNull( variables.relatedentity ) ) {
       entitytolog = variables.relatedentity;
     }
 
-    if ( isnull( entitytolog ) ) {
+    if ( isNull( entitytolog ) ) {
+      writeOutput( 'entitytolog is null' );abort;
       return this;
     }
 
-    writelog( text = "logging entry for #entitytolog.getid( )#", file = request.appname );
-
     var formdata = {
-      "dd" = now( ),
-      "ip" = cgi.remote_addr,
-      "relatedentity" = entitytolog.getid( )
+      'dd' = now(),
+      'ip' = cgi.remote_addr,
+      'relatedentity' = entitytolog.getid()
     };
 
-    if ( isdefined( "request.context.auth.userid" ) ) {
-      var contact = entityloadbypk( "contact", request.context.auth.userid );
+    if ( !isNull( request.context.auth.userid ) ) {
+      var contact = entityLoadByPK( 'contact', request.context.auth.userid );
 
-      if ( !isnull( contact ) ) {
-        formdata[ "by" ] = contact;
+      if ( !isNull( contact ) ) {
+        formdata[ 'by' ] = contact;
       }
     }
 
     if ( len( trim( action ) ) ) {
-      var logaction = entityload( "logaction", { name = action }, true );
+      var logaction = entityLoad( 'logaction', { name = action }, true );
 
-      if ( isnull( logaction ) ) {
-        var logaction = entityload( "logaction", { name = "init" }, true );
+      if ( isNull( logaction ) ) {
+        var logaction = entityLoad( 'logaction', { name = 'init' }, true );
       }
 
-      if ( !isnull( logaction ) ) {
-        formdata[ "logaction" ] = logaction;
+      if ( !isNull( logaction ) ) {
+        formdata[ 'logaction' ] = logaction;
       }
     }
 
-    if ( structisempty( newstate ) ) {
-      newstate = { "init" = true, "name" = entitytolog.getname( ) };
+    if ( newstate.isEmpty() ) {
+      newstate = { 'init' = true, 'name' = entitytolog.getname() };
     }
 
-    formdata[ "savedstate" ] = left( serializejson( deorm( newstate ) ), 4000 );
+    newstate.delete( 'savedstate' );
+
+    formdata[ 'savedstate' ] = serializeJSON( newstate );
 
     transaction {
       var result = save( formdata );
-    }
-
-    var e = result.getrelatedentity( );
-
-    if ( !isnull( e ) ) {
-      writelog( text = "entry logged for #e.getid( )#", file = request.appname );
     }
 
     return result;
