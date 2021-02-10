@@ -27,7 +27,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  this.version = "4.2.0";
+  this.version = "4.3.0";
   this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
   this.logLevels = listToArray( "debug,information,warning,error,fatal" );
   this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
@@ -62,7 +62,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( logMessage, 'basecfc.global' );
     }
 
-    var inheritedProperties = variables.instance.properties;
     var savedState = { };
 
     for ( var logField in this.logFields ) {
@@ -141,13 +140,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       ' );
     }
 
+    // setup object properties to loop over:
+
+    var inheritedProperties = variables.instance.properties;
+
     // This object can handle non-existing fields, so lets add those to the properties struct.
+    //  - ignore fields ending in ID
+    //  - ignore actual object properties
+    //  - ignore default fields
     if ( variables.instance.meta.findValue( "onMissingMethod" ).len() ) {
-      formData.keyArray().each(function(key){
-        if ( inheritedProperties.keyExists( key ) ) continue;
-        if ( isDefaultField( key ) ) continue;
-        inheritedProperties[ key ] = { "name" = key, "jsonData" = true };
-      });
+      formData.keyArray()
+        .filter( function( key ){ return right( key, 2 ) != 'id'; } )
+        .filter( function( key ){ return !inheritedProperties.keyExists( key ); } )
+        .filter( function( key ){ return !isDefaultField( key ); } )
+        .each( function( key ) { inheritedProperties[ key ] = { 'name' = key, 'jsonData' = true }; } );
     }
 
     var sortedPropertyKeys = inheritedProperties.keyArray();
