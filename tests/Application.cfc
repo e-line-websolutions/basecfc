@@ -14,33 +14,48 @@ component {
 
   this.javaSettings.loadPaths = [ this.mappings[ '/mustang' ] & '/lib/java' ];
 
-  this.ormSettings.datasource = 'basecfc';
-  this.ormSettings.CFCLocation = this.mappings[ '/root' ] & 'orm';
-  this.ormSettings.DBCreate = 'dropcreate';
-  this.ormSettings.secondaryCacheEnabled = false;
-  this.ormSettings.useDBForMapping = false;
+  this.ormEnabled = true;
 
-  this.ormSettings.autoManageSession = false;
-  this.ormSettings.flushAtRequestEnd = false;
+  this.datasource = 'basecfc';
 
+  this.ormSettings.dbCreate = 'dropcreate';
+  this.ormSettings.cfcLocation = this.mappings[ '/root' ] & 'orm';
+  this.ormSettings.sqlScript = 'nuke.sql';
+
+  // this.ormSettings.secondaryCacheEnabled = false;
+  // this.ormSettings.useDBForMapping = false;
+  // this.ormSettings.autoManageSession = false;
+  // this.ormSettings.flushAtRequestEnd = false;
   // this.ormSettings.cacheConfig = 'ehcache-config_ORM__basecfc.xml';
-  this.ormenabled = true;
-
-  // // this.ormsettings.sqlscript = 'nuke.sql';
-
 
   function onRequest() {
-    var mstng = new mustang.base({});
-
-    request.appName = "basecfc";
+    request.appName = 'basecfc';
     request.context.config.root = 'basecfc.tests';
+
     ormReload();
-    request.allOrmEntities = mstng.listAllOrmEntities( this.ormSettings.CFCLocation );
 
-    param url.reporter="simple";
-    param url.directory="root.specs";
-    param url.recurse=true;
+    request.allOrmEntities = listAllOrmEntities( this.ormSettings.cfcLocation );
 
-    include "/testbox/system/runners/HTMLRunner.cfm";
+    param url.reporter = "simple";
+    param url.directory = "root.specs";
+    param url.recurse = true;
+
+    include '/testbox/system/runners/HTMLRunner.cfm';
   }
+
+  private struct function listAllOrmEntities( cfcLocation ) {
+    var cacheKey = 'orm-entities';
+
+    var allOrmEntities = {};
+    var storedEntityNames = createObject( 'java', 'java.util.Arrays' ).asList( ormGetSessionFactory().getStatistics().getEntityNames() );
+
+    storedEntityNames.each((entityName)=>{
+      var entity = getMetadata( entityNew( entityName ) );
+      allOrmEntities[ entityName ] = { 'name' = entityName, 'table' = isNull( entity.table ) ? entityName : entity.table };
+    });
+
+    return allOrmEntities;
+  }
+
+
 }

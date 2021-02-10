@@ -26,5 +26,8 @@
       "username": "test"
     }
   },
-  "robustExceptionEnabled": true
+  "inspectTemplate": "always",
+  "localScopeMode": "modern",
+  "robustExceptionEnabled": true,
+  "scopeCascading": "strict"
 }

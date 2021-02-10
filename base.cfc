@@ -27,7 +27,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  this.version = "4.2.0";
+  this.version = "4.3.0";
   this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
   this.logLevels = listToArray( "debug,information,warning,error,fatal" );
   this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
@@ -62,7 +62,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( logMessage, 'basecfc.global' );
     }
 
-    var inheritedProperties = variables.instance.properties;
     var savedState = { };
 
     for ( var logField in this.logFields ) {
@@ -141,13 +140,20 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       ' );
     }
 
+    // setup object properties to loop over:
+
+    var inheritedProperties = variables.instance.properties;
+
     // This object can handle non-existing fields, so lets add those to the properties struct.
+    //  - ignore fields ending in ID
+    //  - ignore actual object properties
+    //  - ignore default fields
     if ( variables.instance.meta.findValue( "onMissingMethod" ).len() ) {
-      formData.keyArray().each(function(key){
-        if ( inheritedProperties.keyExists( key ) ) continue;
-        if ( isDefaultField( key ) ) continue;
-        inheritedProperties[ key ] = { "name" = key, "jsonData" = true };
-      });
+      formData.keyArray()
+        .filter( function( key ){ return right( key, 2 ) != 'id'; } )
+        .filter( function( key ){ return !inheritedProperties.keyExists( key ); } )
+        .filter( function( key ){ return !isDefaultField( key ); } )
+        .each( function( key ) { inheritedProperties[ key ] = { 'name' = key, 'jsonData' = true }; } );
     }
 
     var sortedPropertyKeys = inheritedProperties.keyArray();
@@ -200,7 +206,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
           writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">' );
           writeOutput( debugoutput.len() ? '#debugoutput#<br>' : '' );
-          writeOutput( 'save() - #property.name#: #getTickCount() - propTimer#ms.' );
+          writeOutput( 'save() - #property.name# (#property.fieldtype#): #getTickCount() - propTimer#ms.' );
           writeOutput( '</td></tr>' );
         }
       }
@@ -644,7 +650,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // REMOVE
     if ( formData.keyExists( 'set_#property.name#' ) ||
     formData.keyExists( 'remove_#property.name#' ) ) {
-      result.addAll( toMany_remove( formData, property, reverseCFCLookup ) );
+      result.append( toMany_remove( formData, property, reverseCFCLookup ), true );
     }
 
     // SET
@@ -654,7 +660,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var key = 'add_#propertyName( property )#';
 
     if ( formData.keyExists( key ) ) {
-      result.addAll( toMany_add( formData[ key ], property, reverseCFCLookup, depth ) );
+      result.append( toMany_add( formData[ key ], property, reverseCFCLookup, depth ), true );
     }
 
     if ( request.context.debug ) writeOutput( '<br>toMany() #getTickCount()-t#ms.' );
@@ -962,9 +968,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.inverseJoinColumn );
         queueInstruction( objectToOverride, "remove#reverseField#", this );
         arrayAppend( result, "#objectToOverride.getName()#.remove#reverseField#(#this.getName()#)" );
-      } else {
-        var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.fkcolumn, false );
-        queueInstruction( objectToOverride, "set#reverseField#", "null" );
       }
 
       queueInstruction( this, "remove#propertyName( property )#", objectToOverride );
@@ -1145,11 +1148,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( "~~ start processing queue for #variables.instance.meta.name# ~~" );
     }
 
-    var instructionsQueue = request.basecfc.queuedInstructions;
-    var idx = 0;
+    var instructionOrder = request.basecfc.queuedInstructions.keyArray();
+    instructionOrder.sort( 'textNoCase' );
 
     // per object
-    instructionsQueue.each( function( objectid, objectInstructions ) {
+    instructionOrder.each( function( objectid, idx ) {
+      var objectInstructions = request.basecfc.queuedInstructions[ objectid ];
+
       if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
       if ( !request.basecfc.instructionsOrder.keyExists( objectid ) ) { continue; }
 
@@ -1181,7 +1186,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           if ( request.context.debug ) {
             instructionTimer = getTickCount( ) - instructionTimer;
             var timerColor = instructionTimer > 50 ? ( instructionTimer > 250 ? 'red' : 'orange' ) : 'black';
-            basecfcLog( logMessage & ' (t=#instructionTimer#, n=#++idx#)', 'fatal' );
+            basecfcLog( logMessage & ' (t=#instructionTimer#, n=#idx++#)', 'fatal' );
             instructionTimers += instructionTimer;
           }
         });
@@ -1232,7 +1237,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     } );
 
-    instructionsQueue.each( function( objectid ) {
+    instructionOrder.each( function( objectid ) {
       if ( !request.basecfc.queuedObjects.keyExists( objectid ) ) { continue; }
       var object = request.basecfc.queuedObjects[ objectid ];
       if ( object.isNew() ) entitySave( object );
@@ -1279,9 +1284,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var result = [];
 
-    result.addAll( tmp.remCommands );
-    result.addAll( tmp.setCommands );
-    result.addAll( tmp.addCommands );
+    result.append( tmp.remCommands, true );
+    result.append( tmp.setCommands, true );
+    result.append( tmp.addCommands, true );
 
     return result;
   }
@@ -1593,22 +1598,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private void function logChanges( struct savedState ) {
-    if ( structKeyExists( savedState, "logEntries" ) ) {
-    }
-
     if ( !canBeLogged( ) ) {
       return;
     }
 
-    if ( variables.instance.entityName == "logentry" ) {
+    if ( variables.instance.entityName == 'logentry' ) {
       return;
     }
 
-    var logAction = isNew( ) ? "created" : "changed";
-    var logEntry = entityNew( "logentry" );
+    var logAction = isNew() ? 'created' : 'changed';
+    var logEntry = entityNew( 'logentry' );
+
     entitySave( logEntry );
+
     var logResult = logEntry.enterIntoLog( logAction, savedState, this );
-    basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
+
+    basecfcLog( 'Added log entry for #getName()# (#logResult.getId()#).' );
     request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
   }
 
@@ -1841,7 +1846,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   private void function setup() {
     if ( !request.keyExists( 'allOrmEntities' ) ) {
       return;
-      // throw( 'Mustang not initialised, need request.allOrmEntities for basecfc to work.' );
     }
 
     if ( variables.keyExists( 'instance' ) ) return; // entity already set up
