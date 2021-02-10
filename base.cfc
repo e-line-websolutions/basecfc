@@ -206,7 +206,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
           writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">' );
           writeOutput( debugoutput.len() ? '#debugoutput#<br>' : '' );
-          writeOutput( 'save() - #property.name#: #getTickCount() - propTimer#ms.' );
+          writeOutput( 'save() - #property.name# (#property.fieldtype#): #getTickCount() - propTimer#ms.' );
           writeOutput( '</td></tr>' );
         }
       }
@@ -650,7 +650,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // REMOVE
     if ( formData.keyExists( 'set_#property.name#' ) ||
     formData.keyExists( 'remove_#property.name#' ) ) {
-      result.addAll( toMany_remove( formData, property, reverseCFCLookup ) );
+      result.append( toMany_remove( formData, property, reverseCFCLookup ), true );
     }
 
     // SET
@@ -660,7 +660,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     var key = 'add_#propertyName( property )#';
 
     if ( formData.keyExists( key ) ) {
-      result.addAll( toMany_add( formData[ key ], property, reverseCFCLookup, depth ) );
+      result.append( toMany_add( formData[ key ], property, reverseCFCLookup, depth ), true );
     }
 
     if ( request.context.debug ) writeOutput( '<br>toMany() #getTickCount()-t#ms.' );
@@ -1285,9 +1285,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var result = [];
 
-    result.addAll( tmp.remCommands );
-    result.addAll( tmp.setCommands );
-    result.addAll( tmp.addCommands );
+    result.append( tmp.remCommands, true );
+    result.append( tmp.setCommands, true );
+    result.append( tmp.addCommands, true );
 
     return result;
   }
@@ -1599,22 +1599,22 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * TODO: function documentation
   */
   private void function logChanges( struct savedState ) {
-    if ( structKeyExists( savedState, "logEntries" ) ) {
-    }
-
     if ( !canBeLogged( ) ) {
       return;
     }
 
-    if ( variables.instance.entityName == "logentry" ) {
+    if ( variables.instance.entityName == 'logentry' ) {
       return;
     }
 
-    var logAction = isNew( ) ? "created" : "changed";
-    var logEntry = entityNew( "logentry" );
+    var logAction = isNew() ? 'created' : 'changed';
+    var logEntry = entityNew( 'logentry' );
+
     entitySave( logEntry );
+
     var logResult = logEntry.enterIntoLog( logAction, savedState, this );
-    basecfcLog( "Added log entry for #getName( )# (#logResult.getId( )#)." );
+
+    basecfcLog( 'Added log entry for #getName()# (#logResult.getId()#).' );
     request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
   }
 
@@ -1847,7 +1847,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   private void function setup() {
     if ( !request.keyExists( 'allOrmEntities' ) ) {
       return;
-      // throw( 'Mustang not initialised, need request.allOrmEntities for basecfc to work.' );
     }
 
     if ( variables.keyExists( 'instance' ) ) return; // entity already set up
