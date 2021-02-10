@@ -968,9 +968,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.inverseJoinColumn );
         queueInstruction( objectToOverride, "remove#reverseField#", this );
         arrayAppend( result, "#objectToOverride.getName()#.remove#reverseField#(#this.getName()#)" );
-      } else {
-        var reverseField = objectToOverride.getReverseField( reverseCFCLookup, property.fkcolumn, false );
-        queueInstruction( objectToOverride, "set#reverseField#", "null" );
       }
 
       queueInstruction( this, "remove#propertyName( property )#", objectToOverride );
