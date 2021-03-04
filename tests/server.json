@@ -3,7 +3,7 @@
     "cfengine": "lucee"
   },
   "name": "basecfc",
-  "openBrowser":false,
+  "openBrowser": false,
   "web": {
     "host": "basecfc.box",
     "http": {
