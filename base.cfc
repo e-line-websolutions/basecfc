@@ -27,7 +27,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  this.version = "4.3.0";
+  this.version = "4.4.0";
   this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
   this.logLevels = listToArray( "debug,information,warning,error,fatal" );
   this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
@@ -61,8 +61,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( logMessage, 'fatal' );
       throw( logMessage, 'basecfc.global' );
     }
-
-    var savedState = { };
 
     for ( var logField in this.logFields ) {
       formData.delete( logField );
@@ -168,6 +166,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var skipMatrix = getSkipMatrix( property, formData, depth );
 
         if ( skipProperty( skipMatrix ) ) {
+          if ( request.context.debug ) writeOutput( '<br>skipping #key# (#serializeJson( skipMatrix )#)' );
           continue;
         }
 
@@ -194,9 +193,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           }
 
           // log changes if value is not empty and if field is not one of the standard log fields
-          if ( !isNull( valueToLog ) && !this.logFields.findNoCase( property.name ) ) {
-            savedState[ property.name ] = valueToLog;
-          } else if ( request.context.debug ) {
+          if ( request.context.debug ) {
             writeOutput( '<br>not logging anything for "#property.name#" (#isNull(valueToLog)?'null':'not null'#/#this.logFields.findNoCase( property.name )#)' );
           }
         }
@@ -223,8 +220,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // Process queued instructions
     if ( depth == 0 ) {
-      processQueue( );
-      logChanges( savedState );
+      processQueue();
+      logChanges();
     }
 
     return this;
@@ -286,7 +283,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
   * the entity name (as per CFML ORM standard)
   */
-  public string function getEntityName( string className = variables.instance.className ) {
+  public string function getEntityName( string className ) {
+    param className = variables.instance.className;
+
     var basicEntityName = className.listLast( '.' );
     if ( request.allOrmEntities.keyExists( basicEntityName ) ) {
       return request.allOrmEntities[ basicEntityName ].name;
@@ -297,7 +296,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
   * the database table name (as per CFML ORM standard)
   */
-  public string function getTableName( string className = variables.instance.className ) {
+  public string function getTableName( string className ) {
+    param className = variables.instance.className;
+
     var basicEntityName = className.listLast( '.' );
     if ( request.allOrmEntities.keyExists( basicEntityName ) ) {
       return request.allOrmEntities[ basicEntityName ].table;
@@ -531,40 +532,52 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * @data One or more entities to be converted to a less complex representation
   */
   public any function deORM( any data = this ) {
-    var deWormed = { };
-
     if ( isSimpleValue( data ) ) {
-      deWormed = data;
+      return data;
+
     } else if ( isObject( data ) ) {
-      var properties = data.getInheritedProperties( );
-      for ( var key in properties ) {
-        var prop = properties[ key ];
-        if ( !structKeyExists( data, 'get' & prop.name ) || ( structKeyExists( prop, 'fieldtype' ) && findNoCase(
-          "-to-",
-          prop.fieldtype
-        ) ) ) {
-          continue;
-        }
-        deWormed[ prop.name ] = invoke( data, 'get#prop.name#' );
-        if ( prop.name contains '`' ) {
-          writeDump(deWormed[ prop.name ]);abort;
-        }
-      }
+      return deWormObject( data );
+
     } else if ( isStruct( data ) ) {
-      for ( var key in data ) {
-        if ( structKeyExists( data, key ) ) {
-          deWormed[ key ] = deORM( data[ key ] );
-        }
-      }
+      return deWormStruct( data );
+
     } else if ( isArray( data ) ) {
-      var deWormed = [ ];
+      return deWormArray( data );
 
-      for ( var el in data ) {
-        arrayAppend( deWormed, deORM( el ) );
-      }
     }
+  }
 
-    return deWormed;
+  private struct function deWormObject( data ) {
+    return data.getInheritedProperties()
+      .filter( function( key, prop ) { return !isNull( prop ); } )
+      .filter( function( key, prop ) {
+        var propertyHasGetter = structkeyExists( this, 'get#prop.name#' );
+        var isSimpleProperty = !( prop.keyExists( 'fieldtype' ) && prop.fieldtype.findNoCase( '-to-' ) );
+        return ( propertyHasGetter && isSimpleProperty );
+      } )
+      .map( function( key, prop ) {
+        return invoke( this, 'get#prop.name#' );
+      } );
+  }
+
+  private struct function deWormStruct( data ) {
+    if ( isNull( data ) ) return {};
+
+    return data
+      .filter(function(key, value){ return !isNull( value ) })
+      .map( function(key, value) {
+        return deORM( value );
+      } );
+  }
+
+  private array function deWormArray( data ) {
+    var result = [];
+
+    data.each(function(key, value){
+      result.append( deORM( value ) );
+    });
+
+    return result;
   }
 
   /**
@@ -746,12 +759,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var dataType = getDatatype( property );
 
         // check inside json obj to see if an ID was passed in
-        try {
-          var testForJSON = deserializeJSON( nestedData );
-          if ( isStruct( testForJSON ) && testForJSON.keyExists( "id" ) ) {
-            nestedData = testForJSON.id;
+        if ( property.name != 'savedstate' ) {
+          try {
+            var testForJSON = deserializeJSON( nestedData );
+            if ( isStruct( testForJSON ) && testForJSON.keyExists( "id" ) ) {
+              nestedData = testForJSON.id;
+            }
+          } catch ( any e ) {
           }
-        } catch ( any e ) {
         }
 
         if ( request.basecfc.keyExists( "sanitationService" ) && this.sanitizeDataTypes.findNoCase( dataType ) ) {
@@ -809,7 +824,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     if ( !skipToNextPropery ) {
       // remove data if nestedData is empty
-      if ( isNull( nestedData ) ) {
+      if ( isNull( nestedData ) || isDeletedEntity( nestedData ) ) {
         queueInstruction( this, fn, "null" );
 
         if ( request.context.debug ) {
@@ -1022,6 +1037,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       structDelete( formData, "set_#property.name#" );
+
+      if ( workData.isEmpty() ) {
+        formData[ 'set_#property.name#' ] = javaCast( 'null', 0 );
+      }
     }
 
     if ( request.context.debug ) writeOutput( '<br>toMany_convertSetToAdd() #getTickCount()-t#ms.' );
@@ -1358,8 +1377,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * component (or passes along the given component)
   */
   private any function toComponent( required any variable, required string entityName, required string cfc ) {
+
     var t = getTickCount();
     var parsedVar = variable;
+
+    if ( isNull( parsedVar ) || isDeletedEntity( parsedVar ) ) return;
 
     try {
       if ( isObject( parsedVar ) && isInstanceOf( parsedVar, cfc ) ) {
@@ -1572,7 +1594,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       , notInFormdata( property, formData )         ? 1 : 0
       // , (depth>2&&property.keyExists( 'inverse' ))  ? 1 : 0
     ];
-
     return skipMatrix;
   }
 
@@ -1611,7 +1632,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     entitySave( logEntry );
 
-    var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+    if ( isNull( arguments.savedState ) || arguments.savedState.isEmpty() ) {
+      arguments.savedState = deOrm();
+    }
+
+    var logResult = logEntry.enterIntoLog( logAction, arguments.savedState, this );
 
     basecfcLog( 'Added log entry for #getName()# (#logResult.getId()#).' );
     request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
@@ -1772,7 +1797,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   *  - sortorder basecfc-entities always have a sortkey, if you don't use it, set it to 0.
   */
   private void function validateBaseProperties() {
-    if ( variables.instance.className == 'basecfc.base' || variables.instance.className == '' ) {
+    if ( !variables.keyExists( 'instance' ) || variables.instance.className == 'basecfc.base' || variables.instance.className == '' ) {
       return;
     }
 
@@ -1844,10 +1869,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   private void function setup() {
-    if ( !request.keyExists( 'allOrmEntities' ) ) {
-      return;
-    }
-
+    if ( !request.keyExists( 'allOrmEntities' ) ) return; // Application not set up for ORM
     if ( variables.keyExists( 'instance' ) ) return; // entity already set up
 
     param variables.name="";
@@ -1918,5 +1940,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( logMessage, 'fatal' );
       throw( logMessage, 'basecfc.global' );
     }
+  }
+
+  private boolean function isDeletedEntity( value ) {
+    if ( isSimpleValue( value ) && value == 'null' ) return true;
+    if ( isSimpleValue( value ) && value == '' ) return true;
+    return false;
   }
 }
