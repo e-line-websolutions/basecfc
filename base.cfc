@@ -27,7 +27,7 @@
 component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder" hide=true {
   property name="id" type="string" fieldType="id" generator="uuid";
 
-  this.version = "4.4.0";
+  this.version = "4.4.1";
   this.sanitizeDataTypes = listToArray( "date,datetime,double,float,int,integer,numeric,percentage,timestamp" );
   this.logLevels = listToArray( "debug,information,warning,error,fatal" );
   this.logFields = listToArray( "createcontact,createdate,createip,updatecontact,updatedate,updateip" );
@@ -61,6 +61,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( logMessage, 'fatal' );
       throw( logMessage, 'basecfc.global' );
     }
+
+    var savedState = { };
 
     for ( var logField in this.logFields ) {
       formData.delete( logField );
@@ -193,7 +195,9 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           }
 
           // log changes if value is not empty and if field is not one of the standard log fields
-          if ( request.context.debug ) {
+          if ( !isNull( valueToLog ) && !this.logFields.findNoCase( property.name ) ) {
+            savedState[ property.name ] = valueToLog;
+          } else if ( request.context.debug ) {
             writeOutput( '<br>not logging anything for "#property.name#" (#isNull(valueToLog)?'null':'not null'#/#this.logFields.findNoCase( property.name )#)' );
           }
         }
@@ -221,7 +225,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // Process queued instructions
     if ( depth == 0 ) {
       processQueue();
-      logChanges();
+      logChanges( savedState );
     }
 
     return this;
@@ -1377,7 +1381,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * component (or passes along the given component)
   */
   private any function toComponent( required any variable, required string entityName, required string cfc ) {
-
     var t = getTickCount();
     var parsedVar = variable;
 
