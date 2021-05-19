@@ -42,8 +42,10 @@ component extends="testbox.system.basespec" {
     describe( title = 'test helper methods.',
       body = function() {
         beforeeach( function( currentspec ) {
-          variables.obj = entityNew( 'test' );
-          variables.obj.save( { name = 'helpermethods' } );
+          transaction {
+            variables.obj = entityNew( 'test' );
+            variables.obj.save( { name = 'helpermethods' } );
+          }
         } );
 
         aftereach( function( currentspec ) {
@@ -57,7 +59,8 @@ component extends="testbox.system.basespec" {
         } );
 
         it( 'expects tojson( ) to contain all properties of the entity.', function() {
-          expect( variables.obj.tojson() ).toinclude( '"sortorder"' )
+          expect( variables.obj.tojson() )
+            .toinclude( '"sortorder"' )
             .toinclude( '"id"' )
             .toinclude( '"deleted"' )
             .toinclude( '"name"' );
@@ -231,20 +234,22 @@ component extends="testbox.system.basespec" {
         } );
 
         it( 'expects save( {add_data=[data]}) to be able to add multiple one-to-many objects', function() {
-          var first = entityNew( 'other' ).save( { name = 'first' } );
-          var second = entityNew( 'other' ).save( { name = 'second' } );
-
-          var saved = variables.obj.save( {
-            add_entityinsubfolder = [
-              { id = first.getid() },
-              second.getid()
-            ]
-          } );
+          transaction {
+            var first = entityNew( 'other' ).save( { name = 'first' } );
+            var second = entityNew( 'other' ).save( { name = 'second' } );
+            var saved = variables.obj.save( {
+              add_entityinsubfolder = [
+                { id = first.getid() },
+                second.getid()
+              ]
+            } );
+          }
 
           var savedentitiesinsubfolder = saved.getentitiesinsubfolder();
 
           expect( savedentitiesinsubfolder ).tobearray().tohavelength( 2 );
 
+          // order is not guaranteed:
           // expect( savedentitiesinsubfolder[ 1 ].getid() ).tobe( first.getid() );
           // expect( savedentitiesinsubfolder[ 2 ].getid() ).tobe( second.getid() );
         } );
@@ -302,13 +307,13 @@ component extends="testbox.system.basespec" {
         it( 'expects update multiple items to not remove old items', function() {
           transaction {
             var multiple_1 = entityNew( 'multiple' ).save();
-            var multiple_2 = entityNew( 'multiple' ).save();
             variables.obj.save( { 'name' = 'tomanyupdatetest', 'multiples' = [ multiple_1 ] } );
           }
 
           expect( variables.obj.getmultiples() ).tohavelength( 1 );
 
           transaction {
+            var multiple_2 = entityNew( 'multiple' ).save();
             variables.obj.save( {
               'name' = 'tomanyupdatetest',
               'multiples' = [ multiple_1, multiple_2 ]
@@ -316,23 +321,6 @@ component extends="testbox.system.basespec" {
           }
 
           expect( variables.obj.getmultiples() ).tohavelength( 2 );
-        } );
-
-        xit( 'expects update multiple items with nested items pointing back to first item to not remove old items', function() {
-          transaction {
-            var multiple_1 = entityNew( 'multiple' );
-            // multiple_1.enableDebug();
-            multiple_1.save( { test = variables.obj } );
-
-            var multiple_2 = entityNew( 'multiple' );
-            // multiple_2.enableDebug();
-            multiple_2.save( { test = variables.obj } );
-          }
-
-          // variables.obj.enableDebug();
-          variables.obj.save( { 'name' = 'tomanyupdatetest', 'multiples' = [ multiple_2, multiple_1 ] } );
-
-          expect( variables.obj.getmultiples() ).tohavelength( 1 );
         } );
 
         it( 'expects set_ to overwrite add_ in save( )', function() {
@@ -431,6 +419,20 @@ component extends="testbox.system.basespec" {
           var deeperlinkback = deeper.getmores();
           expect( deeperlinkback ).tobearray().tohavelength( 1 );
           expect( deeperlinkback[ 1 ].getid() ).tobe( more.getid() );
+        } );
+
+        it( 'expects save( {more=''null''} ) to delete a nested many-to-one object', function() {
+          transaction {
+            var saved = variables.obj.save( { more = { name = 'newmore' } } );
+          }
+
+          expect( saved.getMore() ).notToBeNull();
+
+          transaction {
+            saved.save( { more = 'null' } );
+          }
+
+          expect( saved.getMore() ).toBeNull();
         } );
       }
     );
@@ -537,7 +539,7 @@ component extends="testbox.system.basespec" {
           ormCloseAllSessions();
         } );
 
-        it( 'expects objects not to be persisted with transactionrollback', function() {
+        it( 'expects objects not to be persisted with transactionRollback', function() {
           expect( entityLoad( 'test' ) ).tohavelength( 0 );
           expect( entityLoad( 'more' ) ).tohavelength( 0 );
 
@@ -555,7 +557,7 @@ component extends="testbox.system.basespec" {
           expect( allmores ).tohavelength( 0 );
         } );
 
-        it( 'expects objects to be persisted without transactionrollback', function() {
+        it( 'expects objects to be persisted without transactionRollback', function() {
           expect( entityLoad( 'test' ) ).tohavelength( 0 );
           expect( entityLoad( 'more' ) ).tohavelength( 0 );
 
@@ -672,8 +674,10 @@ component extends="testbox.system.basespec" {
 
           var logable = entityNew( 'logable' );
 
-          logable.save( { 'afieldtotest' = 'firstvalue', 'thiswontchange' = 'staticvalue' } );
-          logable.save( { 'afieldtotest' = 'secondvalue' } );
+          transaction {
+            logable.save( { 'afieldtotest' = 'firstvalue', 'thiswontchange' = 'staticvalue' } );
+            logable.save( { 'afieldtotest' = 'secondvalue' } );
+          }
 
           var log = entityLoad( 'logentry' );
 
