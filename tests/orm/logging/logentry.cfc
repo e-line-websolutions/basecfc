@@ -58,9 +58,7 @@ component extends=basecfc.base persistent=true {
 
     formdata[ 'savedstate' ] = serializeJSON( newstate );
 
-    transaction {
-      var result = save( formdata );
-    }
+    var result = save( formdata );
 
     return result;
   }
