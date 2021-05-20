@@ -285,6 +285,25 @@ component extends="testbox.system.basespec" {
           expect( savedentitiesinsubfolder[ 1 ].getid() ).tobe( third.getid() );
         } );
 
+        it( 'expects save( {set_data=[]}) to clear all items in data', function() {
+          transaction {
+            var first = entityNew( 'other' ).save( { name = 'first' } );
+            var second = entityNew( 'other' ).save( { name = 'second' } );
+            variables.obj.save( { 'entitiesinsubfolder' = [ first, second ] } );
+          }
+
+          expect( variables.obj.getEntitiesinsubfolder() ).toHaveLength( 2 );
+
+          transaction {
+            variables.obj.save( { 'entitiesinsubfolder' = [] } );
+          }
+
+          expect( variables.obj.getEntitiesinsubfolder() ).toHaveLength( 0 );
+
+          // expect( entityLoad( 'other', { name = 'first' } ) ).toBeEmpty();
+          // expect( entityLoad( 'other', { name = 'second' } ) ).toBeEmpty();
+        } );
+
         it( 'expects remove to work', function() {
           transaction {
             var multiple_1 = entityNew( 'multiple' ).save();
