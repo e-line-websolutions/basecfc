@@ -420,19 +420,18 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
   * Find the corresponding field in the joined object (using the FKColumn)
   */
-  public string function getReverseField( required string cfc, required string fkColumn, boolean singular = true ) {
+  public string function getReverseField( required string cfcPath, required string fkColumn, boolean singular = true ) {
     var t = getTickCount();
-    var field = 0;
     var fieldFound = 0;
     var propertiesWithCFC = variables.instance.properties.findKey( 'cfc', 'all' );
-    var expectedPropertyName = cfc.listLast( '.' );
+    var expectedEntityName = cfcPath.listLast( '.' );
 
     if ( propertiesWithCFC.isEmpty() ) {
-      var logMessage = 'getReverseField() ERROR: nothing linked to #cfc#.';
+      var logMessage = 'getReverseField() ERROR: nothing linked to #cfcPath#.';
       basecfcLog( logMessage, 'fatal' );
 
       try {
-        var expectedCode = 'property name="#expectedPropertyName#s" singularName="#expectedPropertyName#" fieldType="one-to-many" cfc="#cfc#" fkColumn="#fkColumn#";';
+        var expectedCode = 'property name="#expectedEntityName#s" singularName="#expectedEntityName#" fieldType="one-to-many" cfc="#cfcPath#" fkColumn="#fkColumn#";';
         var errorDetail = 'Expected something like: #expectedCode#';
 
         if ( len( fkColumn ) > 2 ) {
@@ -446,32 +445,24 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( logMessage, 'basecfc.getReverseField', errorDetail );
     }
 
+    var testObj = entityNew( expectedEntityName );
+
     for ( var property in propertiesWithCFC ) {
-      field = property.owner;
+      var field = property.owner;
 
-      if ( !field.keyExists( 'fkColumn' ) ) {
-        field[ 'fkColumn' ] = '';
-      }
+      param field.fkColumn = '';
 
-      if ( field[ 'fkColumn' ] != fkColumn || !( field[ 'fkColumn' ] == fkColumn || field.cfc == cfc ) ) {
+      if ( field.fkColumn != fkColumn || !( field.fkColumn == fkColumn || field.cfc == cfcPath ) ) {
         continue;
       }
 
-      if ( field.cfc == cfc && field[ 'fkColumn' ] == fkColumn ) {
+      if ( field.cfc == cfcPath && field.fkColumn == fkColumn ) {
         fieldFound = 1;
         break;
       }
 
-      try {
-        var testObj = entityNew( expectedPropertyName );
-      } catch ( any e ) {
-        writeOutput( 'cfc #cfc# not found' );
-        writeDump( property );
-        writeDump( e );
-        abort;
-      }
 
-      if ( isInstanceOf( testObj, field.cfc ) ) {
+      if ( isInstanceOf( testObj, field.cfc.listLast( '.' ) ) ) {
         fieldFound = 2;
         break;
       }
@@ -490,7 +481,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     if ( fieldFound == 0 ) {
-      var logMessage = 'getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfc#.';
+      var logMessage = 'getReverseField() ERROR: no reverse field found for fk #fkColumn# in cfc #cfcPath#.';
       basecfcLog( logMessage, 'fatal' );
       throw( logMessage, 'basecfc.getReverseField' );
     }
@@ -1598,7 +1589,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       , isDefaultField( property.name )             ? 1 : 0
       , isEmptyText( property, formData )           ? 1 : 0
       , notInFormdata( property, formData )         ? 1 : 0
-      // , (depth>2&&property.keyExists( 'inverse' ))  ? 1 : 0
+      , (depth>2&&property.keyExists( 'inverse' ))  ? 1 : 0
     ];
     return skipMatrix;
   }
