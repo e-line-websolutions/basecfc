@@ -8,5 +8,9 @@ component extends=basecfc.base persistent=true {
   property name="more" fieldtype="many-to-one" cfc="basecfc.tests.orm.more" fkcolumn="moreid";
   property name="duplicate" fieldtype="many-to-one" cfc="basecfc.tests.orm.more" fkcolumn="duplicateid";
   property name="test";
+
+  property name="testm2mAs" singularname="testm2mA" fieldtype="many-to-many" cfc="basecfc.tests.orm.test" fkcolumn="testm2mAid" linktable="test2test" inversejoincolumn="testm2mBid";
+  property name="testm2mBs" singularname="testm2mB" fieldtype="many-to-many" cfc="basecfc.tests.orm.test" fkcolumn="testm2mBid" linktable="test2test" inversejoincolumn="testm2mAid" inverse=true;
+
   property name="jsontest" datatype="json" length="8000";
 }

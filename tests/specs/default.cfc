@@ -457,16 +457,14 @@ component extends="testbox.system.basespec" {
     );
 
     describe( title = 'test save function with many-to-many relations.',
-      body = function() {
-        beforeeach( function( currentspec ) {
+      body = () => {
+        beforeeach( ( currentspec ) => {
           transaction {
-            entityLoad( 'multiple' ).each( function( entity ) {
-              entityDelete( entity );
-            } );
+            entityLoad( 'multiple' ).each( ( entity ) => entityDelete( entity ) );
           }
         } );
 
-        it( 'expects save( ) to work with many-to-many relations', function() {
+        it( 'expects save( ) to work with many-to-many relations', () => {
           transaction {
             var sidea = entityNew( 'multiple' ).save( { name = 'sidea' } );
             var sideb = entityNew( 'multiple' ).save( { name = 'sideb' } );
@@ -474,10 +472,30 @@ component extends="testbox.system.basespec" {
             sidea.save( { multiplesb = [ sideb ] } );
           }
 
-          expect( sidea.getmultiplesb() ).tobetypeof( 'array' ).tohavelength( 1 );
-          expect( sidea.getmultiplesb()[ 1 ] ).tobetypeof( 'component' );
-          expect( sideb.getmultiplesa() ).tobetypeof( 'array' ).tohavelength( 1 );
-          expect( sideb.getmultiplesa()[ 1 ] ).tobetypeof( 'component' );
+          expect( sidea.getmultiplesb()
+            .first()
+            .getId() ).toBe( sideb.getId() );
+
+          expect( sideb.getmultiplesa()
+            .first()
+            .getId() ).toBe( sidea.getId() );
+        } );
+
+        it( 'expects self referencing many-to-many relations to work', () => {
+          transaction {
+            var sidea = entityNew( 'test' ).save( { name = 'sidea' } );
+            var sideb = entityNew( 'test' ).save( { name = 'sideb' } );
+
+            sidea.save( { testm2mBs = [ sideb ] } );
+          }
+
+          expect( sidea.gettestm2mBs()
+            .first()
+            .getId() ).toBe( sideb.getId() );
+
+          expect( sideb.gettestm2mAs()
+            .first()
+            .getId() ).toBe( sidea.getId() );
         } );
       }
     );
