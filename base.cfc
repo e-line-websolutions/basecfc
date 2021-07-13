@@ -559,7 +559,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if ( isNull( data ) ) return {};
 
     return data
-      .filter(function(key, value){ return !isNull( value ) })
+      .filter(function(key, value){ return !isNull( value ); })
       .map( function(key, value) {
         return deORM( value );
       } );
@@ -888,7 +888,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       } else if ( isJSON( '[' & workData & ']' ) ) {
         workData = deSerializeJSON( '[' & workData & ']' ); // for lucee
       } else {
-        return workData.listToArray().map( function( itemID ) { return { "id" = itemID }; } )
+        return workData.listToArray().map( function( itemID ) { return { "id" = itemID }; } );
       }
     }
 
