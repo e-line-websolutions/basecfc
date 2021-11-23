@@ -824,5 +824,33 @@ component extends="testbox.system.basespec" {
         } );
       }
     );
+
+    describe( 'save two many-to-one connections which inherit from eachother', () => {
+      beforeEach( () => {
+        transaction {
+          variables.testA = entityNew( 'testa' );
+          variables.testB = entityNew( 'testb' );
+          variables.factTable = entityNew( 'facttable' );
+          entitySave( variables.testA );
+          entitySave( variables.testB );
+          entitySave( variables.factTable );
+        }
+      } );
+
+      it( 'expects facttable.save() to work', () => {
+        testA.setName( 'testA' );
+        testB.setName( 'testB' );
+
+        transaction {
+          factTable.save( {
+            testa: testa,
+            testb: testb
+          } );
+        }
+
+        expect( factTable.getTestA().getName() ).toBe( 'testA' );
+        expect( factTable.getTestB().getName() ).toBe( 'testB' );
+      } );
+    } );
   }
 }
