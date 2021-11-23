@@ -83,7 +83,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         'timers' = {},
         'instructionsOrder' = {}, // should be ordered, but cf11 doesn't have this feature.
         'queuedInstructions' = {}, // should be ordered, but cf11 doesn't have this feature.
-        'queuedObjects' = { '#getEntityId()#' = this }
+        'queuedObjects' = { '#getEntityGUID()#' = this }
       };
 
       if ( canBeLogged( ) ) {
@@ -99,7 +99,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    if ( request.context.debug ) {
+    if ( isDebugEnabled() ) {
       var debugid = formatAsGUID( createUUID( ) );
       var collapse = "document.getElementById('#debugid#').style.display=(document.getElementById('#debugid#').style.display==''?'none':'');";
       var display = ' style="display:none;"';
@@ -168,7 +168,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
         var skipMatrix = getSkipMatrix( property, formData, depth );
 
         if ( skipProperty( skipMatrix ) ) {
-          if ( request.context.debug ) writeOutput( '<br>skipping #key# (#serializeJson( skipMatrix )#)' );
           continue;
         }
 
@@ -187,22 +186,26 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               break;
 
             case 'one-to-one':
-              if ( formData.keyExists( property.name ) ) var valueToLog = oneToOne( formData[ property.name ], property, reverseCFCLookup, depth );
+              if ( formData.keyExists( property.name ) ) {
+                var valueToLog = oneToOne( formData[ property.name ], property, reverseCFCLookup, depth );
+              }
               break;
 
             default:
-              if ( formData.keyExists( property.name ) ) var valueToLog = toOne( formData[ property.name ], property, reverseCFCLookup, depth );
+              if ( formData.keyExists( property.name ) ) {
+                var valueToLog = toOne( formData[ property.name ], property, reverseCFCLookup, depth );
+              }
           }
 
           // log changes if value is not empty and if field is not one of the standard log fields
           if ( !isNull( valueToLog ) && !this.logFields.findNoCase( property.name ) ) {
             savedState[ property.name ] = valueToLog;
-          } else if ( request.context.debug ) {
+          } else if ( isDebugEnabled() ) {
             writeOutput( '<br>not logging anything for "#property.name#" (#isNull(valueToLog)?'null':'not null'#/#this.logFields.findNoCase( property.name )#)' );
           }
         }
 
-        if ( request.context.debug && len( trim( debugoutput ) ) && !key == '__subclass' ) {
+        if ( isDebugEnabled() && len( trim( debugoutput ) ) && !key == '__subclass' ) {
           var colID = formatAsGUID( createUUID( ) );
           var collapseCol = "document.getElementById('#colID#').style.display=(document.getElementById('#colID#').style.display==''?'none':'');";
           writeOutput( '<tr><th width="15%" valign="top" align="right" onclick="#collapseCol#">#key#</th><td width="85%" id="#colID#">' );
@@ -213,7 +216,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    if ( request.context.debug ) {
+    if ( isDebugEnabled() ) {
       writeOutput( '
           </table>
           #variables.instance.entityName#: #getTickCount( )-basecfctimer#ms.
@@ -264,6 +267,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
   * TODO: function documentation
   */
+  public boolean function isDebugEnabled() {
+    param request.context.debug = false;
+    return request.context.debug;
+  }
+
+  /**
+  * TODO: function documentation
+  */
   public component function dontLog( ) {
     variables.instance.config.log = false;
     return this;
@@ -288,6 +299,8 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * the entity name (as per CFML ORM standard)
   */
   public string function getEntityName( string className ) {
+    setup();
+
     param className = variables.instance.className;
 
     var basicEntityName = className.listLast( '.' );
@@ -372,7 +385,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   /**
   * Returns a db wide unique id
   */
-  public string function getEntityId() {
+  public string function getEntityGUID() {
     return getEntityName() & '_' & getId();
   }
 
@@ -494,7 +507,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       result = field.singularName;
     }
 
-    if ( request.context.debug ) writeOutput( '<br>getReverseField() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>getReverseField() #getTickCount()-t#ms.' );
 
     return result;
   }
@@ -671,7 +684,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       result.append( toMany_add( formData[ key ], property, reverseCFCLookup, depth ), true );
     }
 
-    if ( request.context.debug ) writeOutput( '<br>toMany() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>toMany() #getTickCount()-t#ms.' );
 
     return result;
   }
@@ -689,7 +702,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * generates set() command for complex (component) value fields
   */
   private any function toOne_complex( any nestedData, struct property, string reverseCFCLookup, numeric depth ) {
-    if ( request.context.debug ) writeOutput( '<br>called toOne_complex()' );
+    if ( isDebugEnabled() ) writeOutput( '<br>called toOne_complex()' );
 
     var t = getTickCount();
     var fn = "set" & property.name;
@@ -753,7 +766,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * generates set() command for simple value fields
   */
   private any function toOne_simple( any nestedData, struct property, string reverseCFCLookup, numeric depth ) {
-    if ( request.context.debug ) writeOutput( '<br>called toOne_simple()' );
+    if ( isDebugEnabled() ) writeOutput( '<br>called toOne_simple()' );
 
     var t = getTickCount();
     var fn = "set" & property.name;
@@ -780,7 +793,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var dirtyValue = duplicate( nestedData );
       var sanitationResult = request.basecfc.sanitationService.sanitize( nestedData, dataType );
 
-      if ( request.context.debug ) writeOutput( '<br>toOne_simple() 4. #getTickCount()-t#ms.' );
+      if ( isDebugEnabled() ) writeOutput( '<br>toOne_simple() 4. #getTickCount()-t#ms.' );
 
       nestedData = sanitationResult.value;
 
@@ -826,7 +839,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       queueInstruction( this, fn, "null" );
     }
 
-    if ( request.context.debug ) writeOutput( '<br>toOne_simple() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>toOne_simple() #getTickCount()-t#ms.' );
 
     if ( !isNull( valueToLog ) ) {
       return valueToLog;
@@ -949,17 +962,17 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       updateStruct[ reverseField ] = this;
 
-      if ( request.context.debug ) {
+      if ( isDebugEnabled() ) {
         basecfcLog( 'calling: o2m #propertyEntityName#.save(#depth + 1#)' );
       }
 
-      if ( request.context.debug ) writeOutput( '<br>toMany_add() -> save() #getTickCount()-t#ms.' );
+      if ( isDebugEnabled() ) writeOutput( '<br>toMany_add() -> save() #getTickCount()-t#ms.' );
 
       // Go down the rabbit hole:
       result.append( objectToLink.save( depth = depth + 1, formData = updateStruct ) );
     } );
 
-    if ( request.context.debug ) writeOutput( '<br>toMany_add() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>toMany_add() #getTickCount()-t#ms.' );
 
     return result;
   }
@@ -973,7 +986,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     var objectsToOverride = getObjectsToOverride( formData, property.name );
 
-    if ( request.context.debug ) writeOutput( '<br>called toMany_remove() => #objectsToOverride.len()#' );
+    if ( isDebugEnabled() ) writeOutput( '<br>called toMany_remove() => #objectsToOverride.len()#' );
 
     for ( var objectToOverride in objectsToOverride ) {
       if ( property.fieldType == "many-to-many" ) {
@@ -989,7 +1002,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       arrayAppend( result, "#this.getName()#.remove#propertyName( property )#(#objectToOverride.getName()#)" );
     }
 
-    if ( request.context.debug ) writeOutput( '<br>toMany_remove( formData, #property.name#, #reverseCFCLookup# ) - #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>toMany_remove( formData, #property.name#, #reverseCFCLookup# ) - #getTickCount()-t#ms.' );
 
     return result;
   }
@@ -1043,7 +1056,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     }
 
-    if ( request.context.debug ) writeOutput( '<br>toMany_convertSetToAdd() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>toMany_convertSetToAdd() #getTickCount()-t#ms.' );
 
     return formData;
   }
@@ -1152,7 +1165,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       } );
     }
 
-    if ( request.context.debug ) writeOutput( '<br>parseUpdateStruct() #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br>parseUpdateStruct() #getTickCount()-t#ms.' );
 
     // could return an empty struct:
     return result;
@@ -1162,7 +1175,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * Processes the queued instructions in one batch
   */
   private void function processQueue( ) {
-    if ( request.context.debug ) {
+    if ( isDebugEnabled() ) {
       var instructionTimers = 0;
       basecfcLog( "~~ start processing queue for #variables.instance.meta.name# ~~" );
     }
@@ -1171,14 +1184,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     instructionOrder.sort( 'textNoCase' );
 
     // per object
-    instructionOrder.each( function( entityID, idx ) {
-      var objectInstructions = request.basecfc.queuedInstructions[ entityID ];
+    instructionOrder.each( function( entityGUID, idx ) {
+      var objectInstructions = request.basecfc.queuedInstructions[ entityGUID ];
 
-      if ( !request.basecfc.queuedObjects.keyExists( entityID ) ) { continue; }
-      if ( !request.basecfc.instructionsOrder.keyExists( entityID ) ) { continue; }
+      if ( !request.basecfc.queuedObjects.keyExists( entityGUID ) ) { continue; }
+      if ( !request.basecfc.instructionsOrder.keyExists( entityGUID ) ) { continue; }
 
-      var object = request.basecfc.queuedObjects[ entityID ];
-      var sortedCommands = sortCommands( request.basecfc.instructionsOrder[ entityID ] );
+      var object = request.basecfc.queuedObjects[ entityGUID ];
+      var sortedCommands = sortCommands( request.basecfc.instructionsOrder[ entityGUID ] );
 
       // per command
       sortedCommands.each( function( command ) {
@@ -1191,7 +1204,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
                 : isObject( value )
                   ? value.getName()
                   : '';
-          var logMessage = 'called: [#entityID#] #object.getEntityName()#.#command#' & ( isNull( logValue ) ? '()' : '(#logValue#)' );
+          var logMessage = 'called: [#entityGUID#] #object.getEntityName()#.#command#' & ( isNull( logValue ) ? '()' : '(#logValue#)' );
           var instructionTimer = getTickCount();
 
           // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ACTUAL GET/SET/REMOVE COMMANDS HERE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1202,7 +1215,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
             rethrow;
           }
 
-          if ( request.context.debug ) {
+          if ( isDebugEnabled() ) {
             instructionTimer = getTickCount( ) - instructionTimer;
             var timerColor = instructionTimer > 50 ? ( instructionTimer > 250 ? 'red' : 'orange' ) : 'black';
             basecfcLog( logMessage & ' (t=#instructionTimer#, n=#idx++#)', 'fatal' );
@@ -1256,14 +1269,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
     } );
 
-    instructionOrder.each( function( entityID ) {
-      if ( !request.basecfc.queuedObjects.keyExists( entityID ) ) { continue; }
-      var object = request.basecfc.queuedObjects[ entityID ];
+    instructionOrder.each( function( entityGUID ) {
+      if ( !request.basecfc.queuedObjects.keyExists( entityGUID ) ) { continue; }
+      var object = request.basecfc.queuedObjects[ entityGUID ];
       if ( object.isNew() ) entitySave( object );
       ormEvictEntity( object.getEntityName(), object.getId() );
     } );
 
-    if ( request.context.debug ) {
+    if ( isDebugEnabled() ) {
       basecfcLog( '~~ finished queue in #instructionTimers#ms. ~~' );
     }
   }
@@ -1324,26 +1337,26 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       return;
     }
 
-    var entityID = entity.getEntityId();
+    var entityGUID = entity.getEntityGUID();
 
-    if ( !request.basecfc.queuedObjects.keyExists( entityID ) ) {
-      request.basecfc.queuedObjects[ entityID ] = entity;
+    if ( !request.basecfc.queuedObjects.keyExists( entityGUID ) ) {
+      request.basecfc.queuedObjects[ entityGUID ] = entity;
     }
 
-    if ( !request.basecfc.instructionsOrder.keyExists( entityID ) ) {
-      request.basecfc.instructionsOrder[ entityID ] = {}; // should be ordered, but cf11 doesn't have this feature.
+    if ( !request.basecfc.instructionsOrder.keyExists( entityGUID ) ) {
+      request.basecfc.instructionsOrder[ entityGUID ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
-    if ( !request.basecfc.queuedInstructions.keyExists( entityID ) ) {
-      request.basecfc.queuedInstructions[ entityID ] = {}; // should be ordered, but cf11 doesn't have this feature.
+    if ( !request.basecfc.queuedInstructions.keyExists( entityGUID ) ) {
+      request.basecfc.queuedInstructions[ entityGUID ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
-    if ( !request.basecfc.queuedInstructions[ entityID ].keyExists( command ) ) {
-      request.basecfc.queuedInstructions[ entityID ][ command ] = {}; // should be ordered, but cf11 doesn't have this feature.
+    if ( !request.basecfc.queuedInstructions[ entityGUID ].keyExists( command ) ) {
+      request.basecfc.queuedInstructions[ entityGUID ][ command ] = {}; // should be ordered, but cf11 doesn't have this feature.
     }
 
     if ( isObject( value ) ) {
-      var valueID = value.getEntityId( );
+      var valueID = value.getEntityGUID( );
 
       if ( isNull( valueID ) ) {
         var logMessage = "No ID set on entity #value.getName( )#";
@@ -1352,23 +1365,23 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       // Adds multiple values:
-      request.basecfc.queuedInstructions[ entityID ][ command ][ valueID ] = value;
+      request.basecfc.queuedInstructions[ entityGUID ][ command ][ valueID ] = value;
 
-      if ( !request.basecfc.instructionsOrder[ entityID ].keyExists( command ) ) {
-        request.basecfc.instructionsOrder[ entityID ][ command ] = [ ];
+      if ( !request.basecfc.instructionsOrder[ entityGUID ].keyExists( command ) ) {
+        request.basecfc.instructionsOrder[ entityGUID ][ command ] = [ ];
       }
 
-      var existingInstructionIndex = request.basecfc.instructionsOrder[ entityID ][ command ].findNoCase( valueID );
+      var existingInstructionIndex = request.basecfc.instructionsOrder[ entityGUID ][ command ].findNoCase( valueID );
 
       if ( existingInstructionIndex && command.left( 3 ) != "add" ) {
-        request.basecfc.instructionsOrder[ entityID ][ command ].deleteAt( existingInstructionIndex );
+        request.basecfc.instructionsOrder[ entityGUID ][ command ].deleteAt( existingInstructionIndex );
       }
 
-      request.basecfc.instructionsOrder[ entityID ][ command ].append( valueID );
+      request.basecfc.instructionsOrder[ entityGUID ][ command ].append( valueID );
     } else {
       // Adds single value:
-      request.basecfc.queuedInstructions[ entityID ][ command ].value = value;
-      request.basecfc.instructionsOrder[ entityID ][ command ] = [ "value" ];
+      request.basecfc.queuedInstructions[ entityGUID ][ command ].value = value;
+      request.basecfc.instructionsOrder[ entityGUID ][ command ] = [ "value" ];
     }
   }
 
@@ -1394,12 +1407,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     try {
       if ( isObject( parsedVar ) && luceeAcfIsInstanceOf( parsedVar, cfc ) ) {
-        if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> => #cfc# - #getTickCount()-t#ms. (early exit)' );
+        if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> => #cfc# - #getTickCount()-t#ms. (early exit)' );
         return parsedVar;
       }
 
       if ( isSimpleValue( parsedVar ) && len( trim( parsedVar ) ) ) {
-        if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> => parsedVar might be an ID: #parsedVar# - #getTickCount()-t#ms.' );
+        if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> => parsedVar might be an ID: #parsedVar# - #getTickCount()-t#ms.' );
 
         if ( isValidPK( parsedVar ) ) {
           parsedVar = { "id" = parsedVar };
@@ -1412,7 +1425,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       if ( isStruct( parsedVar ) ) {
         if ( structIsEmpty( parsedVar ) ) {
-          if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> => empty struct - #getTickCount()-t#ms. (early exit)' );
+          if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> => empty struct - #getTickCount()-t#ms. (early exit)' );
           return;
         }
 
@@ -1430,23 +1443,23 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       }
 
       if ( isNull( objectToLink ) ) {
-        if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> => objectToLink still null - #getTickCount()-t#ms. (early exit)' );
+        if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> => objectToLink still null - #getTickCount()-t#ms. (early exit)' );
 
-        if ( request.context.debug ) {
+        if ( isDebugEnabled() ) {
           basecfcLog( "Creating new #entityName#." );
         }
 
         var objectToLink = entityNew( entityName );
         entitySave( objectToLink );
-        var entityID = objectToLink.getEntityId();
+        var entityGUID = objectToLink.getEntityGUID();
 
-        if ( !structKeyExists( request.basecfc.queuedObjects, entityID ) ) {
-          request.basecfc.queuedObjects[ entityID ] = objectToLink;
+        if ( !structKeyExists( request.basecfc.queuedObjects, entityGUID ) ) {
+          request.basecfc.queuedObjects[ entityGUID ] = objectToLink;
         }
       }
 
       if ( isObject( objectToLink ) && luceeAcfIsInstanceOf( objectToLink, "basecfc.base" ) ) {
-        if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> => basecfc.base #getTickCount()-t#ms. (early exit)' );
+        if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> => basecfc.base #getTickCount()-t#ms. (early exit)' );
         return objectToLink;
       }
 
@@ -1454,7 +1467,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       basecfcLog( logMessage, "fatal" );
       throw( logMessage, "basecfc.toComponent" );
     } catch ( basecfc.toComponent e ) {
-      if ( request.context.debug ) {
+      if ( isDebugEnabled() ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1469,7 +1482,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var logMessage = "While creating object #entityName#, an unexpected error occured: #e.message# (#e.detail#)";
       basecfcLog( logMessage, "fatal" );
 
-      if ( request.context.debug ) {
+      if ( isDebugEnabled() ) {
         try {
           writeDump( arguments );
           writeDump( e );
@@ -1482,7 +1495,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       throw( logMessage, "basecfc.toComponent" );
     }
 
-    if ( request.context.debug ) writeOutput( '<br><b>toComponent()</b> #getTickCount()-t#ms.' );
+    if ( isDebugEnabled() ) writeOutput( '<br><b>toComponent()</b> #getTickCount()-t#ms.' );
   }
 
   /**
@@ -1508,7 +1521,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       writeLog( text = text, type = level, file = file );
     }
 
-    if ( request.context.debug ) {
+    if ( isDebugEnabled() ) {
       writeOutput( "<br />" & text );
     }
   }
@@ -1642,11 +1655,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     var logAction = isNew() ? 'created' : 'changed';
-    var logEntry = entityNew( 'logentry' );
 
-    entitySave( logEntry );
-
-    var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+    transaction {
+      var logEntry = entityNew( 'logentry' );
+      entitySave( logEntry );
+      var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+    }
 
     basecfcLog( 'Added log entry for #getName()# (#logResult.getId()#).' );
     request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.
@@ -1705,14 +1719,14 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       var entitiesToRemoveAsIds = [];
 
       for ( var entityToRemove in entitiesToRemove ) {
-        var asEntityId = entityToRemove;
+        var asEntityGUId = entityToRemove;
 
         if ( isObject( entityToRemove ) && structKeyExists( entityToRemove, 'getId' ) ) {
-          asEntityId = entityToRemove.getId();
+          asEntityGUId = entityToRemove.getId();
         }
 
-        if ( isValidPK( asEntityId ) ) {
-          arrayAppend( entitiesToRemoveAsIds, asEntityId );
+        if ( isValidPK( asEntityGUId ) ) {
+          arrayAppend( entitiesToRemoveAsIds, asEntityGUId );
         }
       }
 
@@ -1733,13 +1747,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   * Check if an ORM function call was already placed in the queue, no need to do that twice
   */
   private boolean function isObjectActionInQueue( fn, objectToLink ) {
-    var entityId = getEntityId();
+    var entityGUId = getEntityGUID();
 
-    var result = request.basecfc.queuedInstructions.keyExists( entityId ) && request.basecfc.queuedInstructions[ entityId ].keyExists( fn );
+    var result = request.basecfc.queuedInstructions.keyExists( entityGUId ) && request.basecfc.queuedInstructions[ entityGUId ].keyExists( fn );
 
     if ( !isNull( objectToLink ) ) {
       writeOutput( '<br>#objectToLink.getEntityName()# - #objectToLink.getName()#' );
-      return ( result && request.basecfc.queuedInstructions[ entityId ][ fn ].keyExists( objectToLink.getEntityId() ) );
+      return ( result && request.basecfc.queuedInstructions[ entityGUId ][ fn ].keyExists( objectToLink.getEntityGUID() ) );
     }
 
     return result;
@@ -1755,7 +1769,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       case 'one-to-one':
       case 'many-to-one':
         var linkeObjectHasthisObject = invoke( otherObj, 'has#otherField#' );
-        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 1: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
+        if ( isDebugEnabled() ) writeOutput( '<br>objectsAreadyLinked() 1: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
         break;
 
       case 'one-to-many':
@@ -1765,7 +1779,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               SELECT COUNT(l.id) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :thisId AND r.id = :otherId
             ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } ).first()
           : invoke( otherObj, 'has#otherField#', this );
-        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 2: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
+        if ( isDebugEnabled() ) writeOutput( '<br>objectsAreadyLinked() 2: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
         break;
     }
 
@@ -1774,7 +1788,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       case 'one-to-one':
       case 'many-to-one':
         var thisObjectHasLinkedObject = invoke( this, 'has#propertyName( property )#' );
-        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 3: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
+        if ( isDebugEnabled() ) writeOutput( '<br>objectsAreadyLinked() 3: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
         break;
 
       case 'one-to-many':
@@ -1784,7 +1798,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
               SELECT COUNT(l.id) FROM #getEntityName()# l JOIN l.#property.name# r WHERE l.id = :otherId AND r.id = :thisId
             ', { 'thisId' = getId(), 'otherId' = otherObj.getId() }, { cacheable = false } ).first()
           : invoke( this, 'has#propertyName( property )#', otherObj );
-        if ( request.context.debug ) writeOutput( '<br>objectsAreadyLinked() 4: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
+        if ( isDebugEnabled() ) writeOutput( '<br>objectsAreadyLinked() 4: #getTickCount()-t#ms. -> #linkeObjectHasthisObject#' );
         break;
     }
 
@@ -1874,7 +1888,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
   private void function setup() {
     if ( !request.keyExists( 'allOrmEntities' ) ) return; // Application not set up for ORM
-    if ( variables.keyExists( 'instance' ) ) return; // entity already set up
+    if ( variables.keyExists( 'instance' ) && variables.instance.keyExists( 'className' ) ) return; // entity already set up
 
     param variables.name="";
     param variables.deleted=false;
@@ -1898,7 +1912,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.instance.config.root="root";
     param variables.instance.config.log=false;
     param variables.instance.properties.id.type='';
-    param request.context.debug=false;
 
     variables.instance[ 'className' ] = getClassName();
     variables.instance[ 'id' ] = getDefaultPK();
