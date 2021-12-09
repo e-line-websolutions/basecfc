@@ -1655,11 +1655,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     }
 
     var logAction = isNew() ? 'created' : 'changed';
-    var logEntry = entityNew( 'logentry' );
 
-    entitySave( logEntry );
-
-    var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+    transaction {
+      var logEntry = entityNew( 'logentry' );
+      entitySave( logEntry );
+      var logResult = logEntry.enterIntoLog( logAction, savedState, this );
+    }
 
     basecfcLog( 'Added log entry for #getName()# (#logResult.getId()#).' );
     request.context.log = logResult; // <- that's ugly, but I need the log entry in some controllers.

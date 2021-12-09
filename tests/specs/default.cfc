@@ -41,7 +41,7 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'test helper methods.',
       body = function() {
-        beforeeach( function( currentspec ) {
+        beforeEach( function( currentspec ) {
           transaction {
             variables.obj = entityNew( 'test' );
             variables.obj.save( { name = 'helpermethods' } );
@@ -142,7 +142,7 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'test basic save function.',
       body = function() {
-        beforeeach( function( currentspec ) {
+        beforeEach( function( currentspec ) {
           variables.obj = entityNew( 'test' ).save( { name = 'invalidnamebasicsave' } );
         } );
 
@@ -176,7 +176,7 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'test save function with one-to-many relations.',
       body = function() {
-        beforeeach( function( currentspec ) {
+        beforeEach( function( currentspec ) {
           variables.obj = entityNew( 'test' ).save( { name = 'invalidname' } );
         } );
 
@@ -364,7 +364,7 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'test save function with many-to-one relations.',
       body = function() {
-        beforeeach( function( currentspec ) {
+        beforeEach( function( currentspec ) {
           variables.obj = entityNew( 'test' ).save( { name = 'invalidname' } );
         } );
 
@@ -458,7 +458,7 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'test save function with many-to-many relations.',
       body = () => {
-        beforeeach( ( currentspec ) => {
+        beforeEach( ( currentspec ) => {
           transaction {
             entityLoad( 'multiple' ).each( ( entity ) => entityDelete( entity ) );
           }
@@ -559,17 +559,19 @@ component extends="testbox.system.basespec" {
 
     describe( title = 'transaction tests',
       body = function() {
-        beforeeach( function( currentspec ) {
-          transaction {
-            entityLoad( 'test' ).each(function(entity){
-              entityReload(entity);
-              entityDelete(entity);
-            });
-            entityLoad( 'more' ).each(function(entity){
-              entityReload(entity);
-              entityDelete(entity);
-            });
-          }
+        beforeEach( function( currentspec ) {
+          try {
+            transaction {
+              entityLoad( 'test' ).each(function(entity){
+                entityReload(entity);
+                entityDelete(entity);
+              });
+              entityLoad( 'more' ).each(function(entity){
+                entityReload(entity);
+                entityDelete(entity);
+              });
+            }
+          } catch ( any e ) {}
         } );
 
         afterEach( function( currentspec ) {
@@ -614,7 +616,9 @@ component extends="testbox.system.basespec" {
     describe( title = 'data type tests',
       body = function() {
         beforeEach( function() {
-          entityLoad( 'validationtests' ).each(function(entity){try{entityDelete(entity);}catch(any e){}});
+          try {
+            entityLoad( 'validationtests' ).each(function(entity){try{entityDelete(entity);}catch(any e){}});
+          } catch ( any e ) {}
         } );
 
         afterEach( function() {
@@ -659,9 +663,10 @@ component extends="testbox.system.basespec" {
             variables.obj = entityNew( 'test' );
             entitySave( obj );
             variables.obj.save( { jsontest = testdata } );
+            transactionCommit();
           }
 
-          var result = queryExecute( "select jsontest->>'hello' as test from test where jsontest @> '#testdata#'" );
+          var result = queryExecute( "select jsontest::jsonb ->> 'hello' as test from test where jsontest::jsonb @> '#testdata#'" );
 
           expect( result.test[ 1 ] ).tobe( 'world' );
         } );
@@ -689,11 +694,7 @@ component extends="testbox.system.basespec" {
             variables.obj.save( { jsontest = testdata } );
           }
 
-          var result = queryExecute(
-            'select jsontest ##>> ''{arr,0,id}'' as test from test where jsontest @> ''{"arr":[]}''',
-            {},
-            { datasource = 'basecfc' }
-          );
+          var result = queryExecute( 'select jsontest::jsonb ##>> ''{arr,0,id}'' as test from test where jsontest::jsonb @> ''{"arr":[]}''' );
 
           expect( result.test[ 1 ] ).tobe( 'myid' );
         } );
