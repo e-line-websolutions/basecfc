@@ -349,11 +349,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
           var currentField = tempProperties[ key ].name;
 
           if ( structKeyExists( variables, currentField ) ) {
-            if ( isObject( variables[ currentField ] ) ) {
-              arrayAppend( result, variables[ currentField ].getName( ) );
+            var fieldValue = invoke( this, 'get#currentField#' );
+
+            if ( isObject( fieldValue ) ) {
+              arrayAppend( result, fieldValue.getName( ) );
               continue;
-            } else if ( isSimpleValue( variables[ currentField ] ) && len( variables[ currentField ] ) ) {
-              arrayAppend( result, variables[ currentField ] );
+            } else if ( isSimpleValue( fieldValue ) && len( fieldValue ) ) {
+              arrayAppend( result, fieldValue );
               continue;
             }
           }
