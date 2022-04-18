@@ -574,11 +574,10 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     if ( isNull( data ) ) return {};
 
     return data
-      .filter(function(key, value){ return !isNull( value ) })
-      .map( function(key, value) {
-        return deORM( value );
-      } );
+      .filter( function( key, value ) { return !isNull( value ); } )
+      .map( function( key, value ) { return deORM( value ); } );
   }
+
 
   private array function deWormArray( data ) {
     var result = [];
@@ -833,7 +832,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
       queueInstruction( this, fn, nestedData );
 
-      var valueToLog = left( nestedData, 255 );
+      var valueToLog = isSimpleValue( nestedData ) ? left( nestedData, 255 ) : 'complex-value';
     }
 
     if ( !skipToNextPropery && ( isNull( nestedData ) || isDeletedEntity( nestedData ) ) ) {
@@ -903,7 +902,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       } else if ( isJSON( '[' & workData & ']' ) ) {
         workData = deSerializeJSON( '[' & workData & ']' ); // for lucee
       } else {
-        return workData.listToArray().map( function( itemID ) { return { "id" = itemID }; } )
+        return workData.listToArray().map( function( itemID ) { return { "id" = itemID }; } );
       }
     }
 
