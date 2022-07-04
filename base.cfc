@@ -152,7 +152,6 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
       formData.keyArray()
         .filter( function( key ){ return right( key, 2 ) != 'id'; } )
         .filter( function( key ){ return !inheritedProperties.keyExists( key ); } )
-        .filter( function( key ){ return !isDefaultField( key ); } )
         .each( function( key ) { inheritedProperties[ key ] = { 'name' = key, 'jsonData' = true }; } );
     }
 
@@ -162,15 +161,11 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     // SAVE VALUES PASSED VIA FORM
     for ( var key in sortedPropertyKeys ) {
       lock timeout=1 name='_lock_#request.basecfc.name#' throwontimeout=true {
+        if ( isDefaultField( key ) ) continue;
+
         var propTimer = getTickCount( );
         var debugoutput = '';
         var property = inheritedProperties[ key ];
-        var skipMatrix = getSkipMatrix( property, formData, depth );
-
-        if ( skipProperty( skipMatrix ) ) {
-          continue;
-        }
-
         var reverseCFCLookup = this.logFields.findNoCase( key )
           ? getORMBase() & '.logged'
           : variables.instance.className;
@@ -1563,78 +1558,12 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     return "string";
   }
 
-  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // START PROPERTY SKIP FUNCTIONS
-  // These 4 functions try to figure out if a field can and must be skipped:
-
-  /**
-  * This one is not yet in use; this is meant to work in combination with isEmptyText() to save a just cleared text field
-  * TODO: make this work
-  */
-  private boolean function wasRemovedFromFormdata( required struct property ) {
-    return structKeyExists( property, "removeFromFormData" ) && property.removeFromFormData;
-  }
-
   /**
   * The default fields are created/updated using other methods or not at all (in case of CF form fields like 'fieldnames')
   */
   private boolean function isDefaultField( required string fieldName ) {
     return arrayFindNoCase( variables.instance.defaultFields, fieldName );
   }
-
-  /**
-  * A field gets ignored when it is a text field and is empty. This is a problem for when you want to clear a field.
-  * There's a function above (wasRemovedFromFormdata) that's supposed to fix this somehow, but that's not yet in use.
-  */
-  private boolean function isEmptyText( required struct property, required struct formData ) {
-    return ( structKeyExists( formData, property.name ) &&
-             isSimpleValue( formData[ property.name ] ) &&
-             !len( trim( formData[ property.name ] ) ) );
-  }
-
-  /**
-  * field is not in form data (could be because its value is NULL)
-  * where field is one of:
-  *  - field
-  *  - fieldId
-  *  - add_field(s)
-  *  - set_field
-  *  - remove_field(s)
-  */
-  private boolean function notInFormdata( required struct property, required struct formData ) {
-    param property.singularName='';
-    return (
-      !structKeyExists( formData, property.name ) &&
-      !structKeyExists( formData, '#property.name#id' ) &&
-      !structKeyExists( formData, 'set_#property.name#' ) &&
-      !( structKeyExists( formData, 'add_#property.name#' ) || structKeyExists( formData, 'add_#property.singularName#' ) ) &&
-      !( structKeyExists( formData, 'remove_#property.name#' ) || structKeyExists( formData, 'remove_#property.singularName#' ) )
-    );
-  }
-
-  /**
-  * TODO: function documentation
-  */
-  private array function getSkipMatrix( required struct property, required struct formData, numeric depth ) {
-    var skipMatrix = [
-        wasRemovedFromFormdata( property )          ? 1 : 0
-      , isDefaultField( property.name )             ? 1 : 0
-      , isEmptyText( property, formData )           ? 1 : 0
-      , notInFormdata( property, formData )         ? 1 : 0
-    ];
-    return skipMatrix;
-  }
-
-  /**
-  * TODO: function documentation
-  */
-  private boolean function skipProperty( skipMatrix ) {
-    return skipMatrix.sum() > 0;
-  }
-
-  //  /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\
-  //  END SKIP FUNCTIONS
-  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   /**
   * TODO: function documentation

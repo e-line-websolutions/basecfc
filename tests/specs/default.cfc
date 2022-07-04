@@ -141,36 +141,47 @@ component extends="testbox.system.basespec" {
     );
 
     describe( title = 'test basic save function.',
-      body = function() {
-        beforeEach( function( currentspec ) {
+      body = () => {
+        beforeEach( () => {
           variables.obj = entityNew( 'test' ).save( { name = 'invalidnamebasicsave' } );
         } );
 
-        aftereach( function( currentspec ) {
+        aftereach( () => {
+          entityDelete( variables.obj );
           structDelete( variables, 'obj' );
         } );
 
-        it( 'expects save( ) to return the entity', function() {
-          var result = variables.obj.save();
-          expect( result ).tobetypeof( 'component' ).tobeinstanceof( 'basecfc.tests.orm.test' );
+        it('expects save() to return the entity', () => {
+          expect(variables.obj.save()).tobetypeof('component').tobeinstanceof('basecfc.tests.orm.test');
+        });
+      }
+    );
+
+    describe( title = 'test simple values save function.',
+      body = () => {
+        beforeEach( () => {
+          variables.obj = entityNew( 'test' ).save( { name = 'invalidnamebasicsave' } );
         } );
 
-        it( 'expects save( {name=''test''}) to change name (a string) to ''test''', function() {
-          expect( variables.obj.getname() ).tobe( 'invalidnamebasicsave' );
-
-          var savedata = { name = 'test' };
-
-          var alteredobj = variables.obj.save( savedata );
-
-          expect( alteredobj.getname() ).tobe( 'test' ).nottobe( 'invalidnamebasicsave' );
+        aftereach( () => {
+          entityDelete( variables.obj );
+          structDelete( variables, 'obj' );
         } );
 
-        it( 'expects save( ) to prioritize first level values', function() {
-          var tests = [ { testid = variables.obj.getid(), name = 'renamed' } ];
-          var more = entityNew( 'more' ).save( { name = 'more', tests = tests } );
-          variables.obj.save( { 'name' = 'prio name', 'more' = more } );
-          expect( variables.obj.getname() ).tobe( 'prio name' ).nottobe( 'renamed' );
-        } );
+        it('expects save( {name=''test''}) to change name (a string) to ''test''', () => {
+          expect(variables.obj.getname()).tobe('invalidnamebasicsave');
+          expect(variables.obj.save({name: 'test'}).getname()).tobe('test').nottobe('invalidnamebasicsave');
+        });
+
+        it('expects save() to prioritize first level values', () => {
+          var tests = [{testid = variables.obj.getid(), name = 'renamed'}];
+          var more = entityNew('more').save({name = 'more', tests = tests});
+          expect(variables.obj.save({name: 'prio name', more: more}).getname()).tobe('prio name').nottobe('renamed');
+        });
+
+        it('expects save() be able to save blank values', () => {
+          expect(variables.obj.save({name: ''}).getName()).toBeNull();
+        });        
       }
     );
 
