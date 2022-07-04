@@ -1,16 +1,16 @@
 {
-  "app": {
-    "cfengine": "lucee"
-  },
-  "name": "basecfc",
-  "openBrowser": false,
-  "web": {
-    "host": "basecfc.box",
-    "http": {
-      "port": 80
+    "app":{
+        "cfengine":"lucee"
     },
-    "rewrites": {
-      "enable": true
+    "name":"basecfc",
+    "openBrowser":false,
+    "web":{
+        "host":"basecfc.box",
+        "http":{
+            "port":80
+        },
+        "rewrites":{
+            "enable":true
+        }
     }
-  }
 }

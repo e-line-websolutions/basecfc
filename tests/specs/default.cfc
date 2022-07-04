@@ -179,9 +179,14 @@ component extends="testbox.system.basespec" {
           expect(variables.obj.save({name: 'prio name', more: more}).getname()).tobe('prio name').nottobe('renamed');
         });
 
-        it('expects save() be able to save blank values', () => {
-          expect(variables.obj.save({name: ''}).getName()).toBeNull();
-        });        
+        it( 'expects save() be able to save blank values', () => {
+          transaction {
+            variables.obj.save( { name: 'something' } );
+          }
+
+          expect( variables.obj.getName() ).toBe( 'something' );
+          expect( variables.obj.save( { name: '' } ).getName() ).toBeNull();
+        } );
       }
     );
 
