@@ -160,7 +160,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
 
     // SAVE VALUES PASSED VIA FORM
     for ( var key in sortedPropertyKeys ) {
-      lock timeout=1 name='_lock_#request.basecfc.name#' throwontimeout=true {
+      lock timeout=30 name='_lock_#request.basecfc.name#' throwontimeout=true {
         if ( isDefaultField( key ) ) continue;
 
         var propTimer = getTickCount( );
