@@ -319,6 +319,13 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
   }
 
   /**
+  * the database table's schema name
+  */
+  public string function getSchemaName() {
+    return variables.instance.meta.schema ?: 'public';
+  }
+
+  /**
   *
   * This method needs to be moved to a controller, since it has to do with output.
   */
@@ -1844,6 +1851,7 @@ component mappedSuperClass=true cacheuse="transactional" defaultSort="sortorder"
     param variables.instance.properties.id.type='';
 
     variables.instance[ 'className' ] = getClassName();
+    variables.instance[ 'schema' ] = getSchemaName();
     variables.instance[ 'id' ] = getDefaultPK();
     variables.instance[ 'properties' ] = getInheritedProperties();
     variables.instance[ 'entityName' ] = getEntityName();
